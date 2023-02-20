@@ -188,7 +188,7 @@ fn.plot_network(
     adj, human_SC['coords'][:, :2], adj, None, edge_alpha=0.5, s=15,
     figsize=(5,5), node_cmap="Greys", edge_cmap=cmaps['Reds_3'], linewidth=0.5)
 save_path = "figures/figure 1/human (structural).png"
-plt.savefig(save_path, dpi=450, rasterized=True, transparent=True)
+plt.savefig(save_path, dpi=600, rasterized=True, transparent=True)
 
 '''
 human (functional) connectome
@@ -204,7 +204,7 @@ fn.plot_network(
     figsize=(5,5), node_cmap="Greys", edge_cmap=cmaps['Blues_3'],
     linewidth=0.5)
 save_path = "figures/figure 1/human (functional).png"
-plt.savefig(save_path, dpi=450, rasterized=True, transparent=True)
+plt.savefig(save_path, dpi=600, rasterized=True, transparent=True)
 
 '''
 human annotations
@@ -217,7 +217,7 @@ for ann in human_annotations:
         None, human_SC['coords'][:, :2], None, scores, s=node_size,
         node_cmap=cmaps['Spectral_11_r'], view_edge=False, edge_alpha=0.10)
     save_path = f"figures/figure 1/human - {ann}.png"
-    plt.savefig(save_path, dpi=450, rasterized=True, transparent=True)
+    plt.savefig(save_path, dpi=600, rasterized=True, transparent=True)
 
 '''
 macaque (scholtens) connectome
@@ -231,7 +231,7 @@ adj, coords = fn.bilaterize_network(
 fn.plot_network(
     adj, coords[:, :2], adj, None, linewidth=1.5, edge_alpha=0.1,
     s=100, figsize=(5,5), node_cmap="Greys",edge_cmap="Greens")
-plt.savefig("figures/figure 1/macaque (scholtens).png", dpi=300,
+plt.savefig("figures/figure 1/macaque (scholtens).png", dpi=600,
             rasterized=True, transparent=True)
 
 '''
@@ -247,7 +247,7 @@ for ann in macaque_annotations:
         None, coords[:, :2], None, scores, node_cmap=cmaps['Spectral_11_r'],
         s=500, view_edge=False)
     plt.savefig(f"figures/figure 1/macaque - {ann}.png",
-                transparent=True, dpi=300, rasterized=True)
+                transparent=True, dpi=600, rasterized=True)
 
 '''
 mouse (oh) connectome
@@ -282,7 +282,7 @@ for ann in mouse_annotations:
         None, coords[:, [0,2]], None, scores, linewidth=1.5, edge_alpha=0.01,
         s=50, figsize=(5,5), view_edge=False, node_cmap=cmaps['Spectral_11_r'])
     plt.savefig(f"figures/figure 1/mouse - {ann}.png",
-                transparent=True, dpi=300, rasterized=True)
+                transparent=True, dpi=600, rasterized=True)
 
 #%% FIGURE 3: Standardized assortativity of micro-architectural annotations
 
