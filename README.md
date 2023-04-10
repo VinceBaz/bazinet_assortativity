@@ -10,7 +10,7 @@ A user can load its own data and modify this main script accordingly to reproduc
 
 ## The data
 
-The [data](data) folder contains the data that was used to perform the analysis described in the main text of the paper. This data is stored in dictionaries saved as `.pickle` files. See the *Methods* section of the paper for more information about the data. **Please refer to the relevant publications listed in the references section below for more information about the data terms associated with each dataset used in this study.**
+The [data](data) folder contains the data that was used to perform the analysis described in the main text of the paper. This data is stored in dictionaries saved as `.pickle` files. See the *Methods* section of the paper for more information about the data. **Before using this data, please refer to the relevant publications listed in the references section below for more information about the data terms associated with each dataset.**
 
 ###  human_FC
 
@@ -26,6 +26,24 @@ Dictionary storing relevant connectivity data for the human functional connectom
 - `thi`: Mean cortical thickness of each parcel, extracted from the HCP dataset.
 - `spin_nulls`: Spatial aucorrelation-presserving permutations generated using [neuromaps](https://github.com/netneurolab/neuromaps) (Markello et al., 2022)
 
+### human_FC_s400
+
+Dictionary storing relevant connectivity data for the human functional connectome
+generated using the 400 nodes Schaefer parcellation (supplementary results).
+This dictionary contains the same entries as `human_FC`.
+
+### human_FC_L
+
+Dictionary storing relevant connectivity data for the left hemipshere of the human functional connectome (supplementary results). This dictionary contains the same entries as `human_FC`.
+
+### human_FC_219
+
+Dictionary storing relevant connectivity data for the group-averaged human functional connectome generated from the [Lausanne dataset](https://zenodo.org/record/2872624#.Y_kkTHbMJD8), using the 219 nodes Cammoun atlas (Cammoun et al., 2012) (supplementary results). This dictionary contains the same entries as `human_FC`.
+
+### human_FC_1000
+
+Dictionary storing relevant connectivity data for the group-averaged human functional connectome generated from the [Lausanne dataset](https://zenodo.org/record/2872624#.Y_kkTHbMJD8), using the 1000 nodes Cammoun atlas (Cammoun et al., 2012) (supplementary results). This dictionary contains the same entries as `human_SC`. Note: Due to file size issues, we only provide 5000 of the 10000 null permutations.
+
 ### human_SC
 
 Dictionary storing relevant connectivity data for the human structural connectome. This dictionary contains:
@@ -38,10 +56,32 @@ Dictionary storing relevant connectivity data for the human structural connectom
 - `receptor_den`: Receptor density in each parcel, averaged across 18 receptors and transporters. See below for more information about the receptor density dataset.
 - `t1t2`: Mean T1w/T2w ratio in each parcel. extracted from the HCP dataset.
 - `thi`: Mean cortical thickness of each parcel, extracted from the HCP dataset.
+- `ci`: Communities of the structural connectome
 - `spin_nulls`: Spatial aucorrelation-presserving permutations generated using [neuromaps](https://github.com/netneurolab/neuromaps) (Markello et al., 2022)
-- `lhannot` and `rhannot`: Freesurfer annotation files for the Schaefer-800 parcellation.
 - `noplot`: List of names in lhannot and rhannot to not plot. This list is used by the 'netneurotools.plotting.plot_fsaverage' function.
 - `order`: Order of the hemispheres in the parcellation (either 'LR' or 'RL'). This order is used by the 'netneurotools.plotting.plot_fsaverage' function.
+-`geo_dist_L` and `geo_dist_R`: Geodesic distance between each parcel of the Schaefer atlas for the left (L) and for the right (R) hemispheres.
+-`hemiid`: Label, for each parcel, indicating whether it is located in the left or the right hemisphere
+
+### human_SC_s400
+
+Dictionary storing relevant connectivity data for the human structural connectome generated using the 400 nodes Schaefer parcellation (supplementary results). This dictionary contains the same entries as `human_SC`.
+
+### human_SC_L
+
+Dictionary storing relevant connectivity data for the left hemipshere of the human structural connectome (supplementary results). This dictionary contains the same entries as `human_SC`.
+
+### human_SC_219
+
+Dictionary storing relevant connectivity data for the group-averaged human structural connectome generated from the [Lausanne dataset](https://zenodo.org/record/2872624#.Y_kkTHbMJD8), using the 219 nodes Cammoun atlas (Cammoun et al., 2012) (supplementary results). This dictionary contains the same entries as `human_SC`.
+
+### human_SC_1000
+
+Dictionary storing relevant connectivity data for the group-averaged human structural connectome generated from the [Lausanne dataset](https://zenodo.org/record/2872624#.Y_kkTHbMJD8), using the 1000 nodes Cammoun atlas (Cammoun et al., 2012) (supplementary results). This dictionary contains the same entries as `human_SC`. Note: Due to file size issues, we only provide 5000 of the 10000 null permutations.
+
+### human_SC_nolog
+
+Dictionary storing relevant connectivity data for the human structural connectome, with the original weights of the connectome (not log-transformed). This dictionary contains the same entries as `human_SC`.
 
 ### mouse_oh
 
@@ -78,6 +118,10 @@ Dictionary storing relevant connectivity data for the mouse (scholtens2014) conn
 - `data`: Parcellated brain maps of probabilistic association between functional key words and individual parcels, generated using [neurosynth](https://neurosynth.org/) (Yarkoni et al., 2011). Each column represent a different brain map.
 - `names`: List of terms identifiying each row of the 'data' matrix.
 
+### burt nulls
+
+This folder contains null annotations preserving the spatial auto-correlation of each annotation, for each species. These null annotations were generated according to the method proposed in Burt et al. (2020), and using the [brainSMASH software](https://github.com/murraylab/brainsmash) introduced in the same paper.
+
 ## The results
 
 The [results](results) folder contains the main results of the experiments presented in the paper. These results are already pre-computed, and can be re-computed using [main_script.py](main_script.py). For more information about the results, see the *Results* section of the paper.
@@ -103,9 +147,16 @@ The experiments presented in this repository make use of a certain number of pyt
 
 *data processing*: Park, B. Y., de Wael, R. V., Paquola, C., Larivière, S., Benkarim, O., Royer, J., ... & Bernhardt, B. C. (2021). Signal diffusion along connectome gradients and inter-hub routing differentially contribute to dynamic human brain function. Neuroimage, 224, 117429.
 
+**Lausanne Connectome Dataset**
+Griffa, A., Alemán-Gómez, Y., and Hagmann, P. (2019). Structural and functional connectome from 70 young healthy adults. doi:10.5281/zenodo.2872624. type: dataset.
+
 **Schaefer atlas**
 
 Schaefer, A., Kong, R., Gordon, E. M., Laumann, T. O., Zuo, X. N., Holmes, A. J., ... & Yeo, B. T. (2018). Local-global parcellation of the human cerebral cortex from intrinsic functional connectivity MRI. Cerebral cortex, 28(9), 3095-3114.
+
+**Cammoun atlas**
+
+Cammoun, L., Gigandet, X., Meskaldji, D., Thiran, J. P., Sporns, O., Do, K. Q., Maeder, P., Meuli, R., and Hagmann, P. (2012). Mapping the human connectome at multiple scales with diffusion spectrum MRI. Journal of Neuroscience Methods, 203(2):386–397.
 
 **Allen Human Brain Atlas**
 
@@ -152,3 +203,7 @@ Hansen, J. Y., Shafiei, G., Markello, R. D., Smart, K., Cox, S. M., Wu, Y., ... 
 **Neurosynth**
 
 Yarkoni, T., Poldrack, R. A., Nichols, T. E., Van Essen, D. C., & Wager, T. D. (2011). Large-scale automated synthesis of human functional neuroimaging data. Nature methods, 8(8), 665-670.
+
+**Burt nulls (Brain surrogates with autocorrelated spatial heterogeneity)**
+
+Burt, J.B., Helmer, M., Shinn, M.W., Anticevic, A., Murray, J.D. Generative modeling of brain maps with spatial autocorrelation. Neuroimage, 220 (2020).

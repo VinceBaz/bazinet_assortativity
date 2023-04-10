@@ -19,9 +19,17 @@ from tqdm import trange, tqdm
 from brainspace.null_models.moran import MoranRandomization
 from matplotlib import cm
 from matplotlib.ticker import MultipleLocator
+from matplotlib.colors import is_color_like, ListedColormap, to_rgba
 from palettable.colorbrewer.diverging import Spectral_11_r, RdBu_11_r
 from palettable.colorbrewer.sequential import Reds_3, Blues_3, GnBu_9
-from scipy.stats import pearsonr
+from palettable.cartocolors.sequential import SunsetDark_7
+from scipy.stats import pearsonr, zscore
+from sklearn.linear_model import LinearRegression
+from sklearn.decomposition import PCA
+from statsmodels.stats.multitest import multipletests
+from joblib import Parallel, delayed
+from itertools import repeat, chain, combinations
+from netneurotools.plotting import plot_fsaverage
 
 '''
 ASSORTATIVITY FUNCTIONS
@@ -189,7 +197,7 @@ def load_data(path):
 
 def save_data(data, path):
     '''
-    Utility function to load pickled dictionary containing the data used in
+    Utility function to save pickled dictionary containing the data used in
     these experiments.
 
     Parameters
@@ -197,7 +205,7 @@ def save_data(data, path):
     data: dict
         Dictionary storing the data that we want to save.
     path: str
-        File path to the pickle file to be loaded
+        path of the pickle file
     '''
 
     with open(path, 'wb') as handle:
@@ -221,20 +229,58 @@ def standardize_scores(surr, emp, axis=None, ignore_nan=False):
         return (emp - surr.mean(axis=axis)) / surr.std(axis=axis)
 
 
-def get_p_value(perm, emp):
+def get_p_value(perm, emp, axis=0):
     '''
-    Utility function to compute the p-value of a score, relative to a null
-    distribution
+    Utility function to compute the p-value (two-tailed) of a score, relative
+    to a null distribution.
 
     Parameters
     ----------
     perm: array-like
         Null distribution of (permuted) scores.
-    emp: float
+    emp: float or array-like
         Empirical score.
+    axis: float
+        Axis of the `perm` array associated with the null scores.
     '''
-    k = len(perm)
-    return len(np.where(abs(perm-np.mean(perm)) > abs(emp-np.mean(perm)))[0])/k
+
+    k = perm.shape[axis]
+    perm_moved = np.moveaxis(perm, axis, 0)
+    perm_mean = np.mean(perm_moved, axis=0)
+
+    # Compute p-value
+    num = (np.count_nonzero(abs(perm_moved-perm_mean) > abs(emp-perm_mean),
+                            axis=0))
+    den = k
+    pval = num / den
+
+    return pval
+
+
+def get_cmap(colorList):
+    '''
+    Function to get a colormap from a list of colors
+    '''
+    n = len(colorList)
+    c_all = np.zeros((256, 4))
+    m = int(256/(n-1))
+    for i in range(n):
+
+        if isinstance(colorList[i], str):
+            color = to_rgba(colorList[i])
+        else:
+            color = colorList[i]
+
+        if i == 0:
+            c_all[:int(m/2)] = color
+        elif i < n-1:
+            c_all[((i-1)*m)+(int(m/2)):(i*m)+(int(m/2))] = color
+        else:
+            c_all[((i-1)*m)+(int(m/2)):] = color
+
+    cmap = ListedColormap(c_all)
+
+    return cmap
 
 
 def get_corr_spin_p(X, Y, spins):
@@ -267,6 +313,17 @@ def get_corr_spin_p(X, Y, spins):
     return p_spin
 
 
+def fill_triu(A):
+    '''
+    Function to fill the triu indices of a matrix with the elements of the
+    tril matrix
+    '''
+
+    n = len(A)
+    A[np.triu_indices(n)] = A.T[np.triu_indices(n)]
+    return A
+
+
 '''
 VISUALIZATION FUNCTIONS
 '''
@@ -293,6 +350,9 @@ def get_colormaps():
     cmaps['Reds_3'] = Reds_3.mpl_colormap
     cmaps['Blues_3'] = Blues_3.mpl_colormap
     cmaps['GnBu_9'] = GnBu_9.mpl_colormap
+
+    # Cartocolors | Sequential
+    cmaps['SunsetDark_7'] = SunsetDark_7.mpl_colormap
 
     return cmaps
 
@@ -497,7 +557,8 @@ def assortativity_boxplot(network_name, null_type, annotations, figsize=(3, 2),
 
 
 def assortativity_barplot(results, annotation_labels, non_sig_colors,
-                          sig_colors, null_types):
+                          sig_colors, figsize=None, barwidth=0.5,
+                          ylim=None, tight_layout=True):
     '''
     Function to plot the barplot showing the standardized assortativity
     results of all the annotations, across all networks.This function relies
@@ -515,9 +576,12 @@ def assortativity_barplot(results, annotation_labels, non_sig_colors,
     sig_color: list of colors
         List of colors used to color each barplot that are significant,
         according to the network associated with it.
-    null_type: str
-        Type of the null model used to compute the null distribution of
-        assortativity results.
+    figsize: tuple
+        Tuple specifying the width and height of the figure in dots-per-inch.
+    barwidth: float
+        Width of the bars.
+    ylim: float
+        Y-limit.
 
     Returns
     -------
@@ -526,18 +590,20 @@ def assortativity_barplot(results, annotation_labels, non_sig_colors,
     '''
 
     n_annotations = len(results)
-    figsize = (n_annotations/2, 3)
+
+    if figsize is None:
+        figsize = (n_annotations/2, 3)
 
     fig = plt.figure(figsize=figsize)
     ax = plt.subplot(111)
-    for i, (ann, null_type) in enumerate(zip(results, null_types)):
+    for i, ann in enumerate(results):
 
-        if ann['assort_p'] < 0.05:
+        if ann['assort_p_fdr'] < 0.05:
             color = sig_colors[i]
         else:
             color = non_sig_colors[i]
 
-        plt.bar(i, ann['assort_z'], width=0.5, color=color,
+        plt.bar(i, ann['assort_z'], width=barwidth, color=color,
                 edgecolor=color, zorder=1)
     plt.plot([0, n_annotations], [0, 0], color='lightgray', linestyle='dashed',
              zorder=0)
@@ -545,7 +611,11 @@ def assortativity_barplot(results, annotation_labels, non_sig_colors,
     ax.set_xlabel("annotation")
     ax.set_xticks(np.arange(len(results)), labels=annotation_labels,
                   rotation='vertical')
-    plt.tight_layout()
+    if ylim is not None:
+        margin = 0.05 * (ylim[1] - ylim[0])
+        ax.set_ylim(bottom=ylim[0]-margin, top=ylim[1]+margin)
+    if tight_layout:
+        plt.tight_layout()
     sns.despine()
 
     return fig
@@ -591,13 +661,13 @@ def plot_assortativity_thresholded(network_name, null_type, annotations,
     fig = plt.figure(figsize=(3.9, 1.8))
     for i, key in enumerate(annotations):
 
-        assort_p = results[key]['assort_all_p']
+        assort_p_fdr = results[key]['assort_all_p_fdr']
         assort_z = results[key]['assort_all_z']
 
         # Set color
         color = np.zeros((n_box), dtype='object')
         color[:] = non_sig_colors[i]
-        color[assort_p < 0.05] = sig_colors[i]
+        color[assort_p_fdr < 0.05] = sig_colors[i]
 
         # Plot trajectory lines
         plt.plot(percent_removed,
@@ -627,7 +697,8 @@ def plot_assortativity_thresholded(network_name, null_type, annotations,
     return fig
 
 
-def plot_regression(X, Y, x_label=None, y_label=None, permutations=None):
+def plot_regression(X, Y, x_label=None, y_label=None, s=5, figsize=(3, 3),
+                    alpha=0.5, permutations=None):
     '''
     Function to plot a scatterplot showing the relationship between a variable
     X and a variable Y as well as the regression line of this relationship.
@@ -641,7 +712,13 @@ def plot_regression(X, Y, x_label=None, y_label=None, permutations=None):
     x_label: str
         Label of the x-axis
     y_label: str
-        Label of the y-axis
+        Label of the y-axis.
+    s: float
+        Size of the markers in the scatterplot.
+    figsize: tuple of floats
+        Size of the matplotlib figure.
+    alpha: float
+        Transparancy of the markers in the scatterplot
     permutations: (n, n_perm) ndarray
         Permutations used to compute the significance of the relatiosnhip.
 
@@ -651,30 +728,40 @@ def plot_regression(X, Y, x_label=None, y_label=None, permutations=None):
         Figure instance of the drawn network.
     '''
 
-    r, _ = pearsonr(X, Y)
+    r_results = pearsonr(X, Y)
+    r, p_perm = r_results
+    CI = r_results.confidence_interval()
+    df = len(X) - 2
+
     if permutations is not None:
         p_spin = get_corr_spin_p(X, Y, permutations)
     fig = plt.figure(figsize=(3, 3))
     sns.regplot(
-        X, Y, color='black', truncate=False,
+        x=X, y=Y, color='black', truncate=False,
         scatter_kws={'s': 5, 'rasterized': True,
-                     'alpha': 0.5, 'edgecolor': 'none'}
+                     'alpha': alpha, 'edgecolor': 'none'}
                 )
     plt.gca().set_aspect(1 / plt.gca().get_data_ratio())
     plt.xlabel(x_label)
     plt.ylabel(y_label)
     if permutations is not None:
-        plt.title(f"r={r:.2f}; p_spin={p_spin:.4f}")
+        p = p_spin
+        plt.title(f"r={r:.2f}; p_spin={p:.4f}")
     else:
-        plt.title(f"r={r:.2f}")
+        p = p_perm
+        if p < 0.00001:
+            plt.title(f"r={r:.2f}; p_perm={p:.5e}")
+        else:
+            plt.title(f"r={r:.2f}; p_perm={p:.5f}")
     plt.tight_layout()
 
-    return fig
+    return fig, (r, p, df, CI)
 
 
 def plot_heatmap(values, xlabels, ylabels, cbarlabel="values",
                  cmap="viridis", vmin=None, vmax=None, grid_width=3,
-                 figsize=None, text_size=12, sigs=None):
+                 figsize=None, text_size=12, sigs=None, text=False,
+                 tight_layout=True):
     '''
     Function to plot a heatmap
 
@@ -699,6 +786,11 @@ def plot_heatmap(values, xlabels, ylabels, cbarlabel="values",
     sigs: ndarray of bool
         Matrix of boolean values indicating which scores in the `values` matrix
         are significant. Significant scores will be denoted with an asterisk.
+    text: bool
+        Boolean indicating whether we want the values plotted as text on top
+        of the heatmap.
+    tight_layout: bool
+        Boolean indicating whether we want a tight layout for the figure
     Returns
     -------
     fig: matplotlib.figure.Figure instance
@@ -751,10 +843,67 @@ def plot_heatmap(values, xlabels, ylabels, cbarlabel="values",
                     im.axes.text(j, i, '*', horizontalalignment='center',
                                  verticalalignment='center', color="white",
                                  fontsize=text_size)
+    # Add text
+    if text:
+        for i in range(values.shape[0]):
+            for j in range(values.shape[1]):
+                im.axes.text(j, i, "{:.2f}".format(values[i, j]),
+                             horizontalalignment='center',
+                             verticalalignment='center', color="black",
+                             fontsize=text_size)
 
-    fig.tight_layout()
+    if tight_layout:
+        fig.tight_layout()
 
     return fig
+
+
+def plot_homophilic_ratios(ratios, ann, coords, lhannot, rhannot,
+                           noplot, order, vmin, vmax, hemi='', n_nodes=None):
+
+    # If hemi is only left hemisphere, set the values on the right to the mean
+    if hemi == "L":
+        scores = np.zeros((n_nodes))+np.mean(ratios)
+        if order == 'RL':
+            scores[(n_nodes-len(ratios)):] = ratios
+            ratios = scores
+        elif order == 'LR':
+            scores[:len(ratios)] = ratios
+    else:
+        scores = ratios
+
+    # plot homophilic ratios on brain surface
+    surface_image = plot_fsaverage(
+        scores, lhannot=lhannot, rhannot=rhannot, noplot=noplot, order=order,
+        views=['lateral', 'm'], vmin=vmin, vmax=vmax,
+        colormap=GnBu_9.mpl_colormap,
+        data_kws={'representation': 'wireframe', 'line_width': 4.0})
+
+    # plot homophilic ratios on dotted brain
+    size_change = abs(zscore(ratios))
+    size_change[size_change > 5] = 5
+    size = 40 + (10 * size_change)
+    dot_image, _ = plot_network(
+        None, coords[:, :2], None, ratios, s=size,
+        view_edge=False, node_cmap=GnBu_9.mpl_colormap, node_vmin=vmin,
+        node_vmax=vmax)
+
+    return surface_image, dot_image
+
+
+def plot_brain_surface(scores, lhannot, rhannot, noplot, order, colormap,
+                       vmin=None, vmax=None):
+    '''wrapper function to call plot_fsaverage more efficiently'''
+    data_kws = {'representation': 'wireframe', 'line_width': 4.0}
+    if vmin is None:
+        vmin = scores.min()
+    if vmax is None:
+        vmax = scores.max()
+
+    return plot_fsaverage(scores, lhannot=lhannot, rhannot=rhannot,
+                          noplot=noplot, order=order, colormap=colormap,
+                          views=['lateral', 'm'], data_kws=data_kws,
+                          vmin=vmin, vmax=vmax)
 
 
 def plot_SC_FC_heterophilic_comparison(SC_receptors, FC_receptors, SC_layers,
@@ -762,8 +911,8 @@ def plot_SC_FC_heterophilic_comparison(SC_receptors, FC_receptors, SC_layers,
     '''
     Function to plot the scatterplot comparing heterophilic mixing in the
     structural and functional connectomes. Data points that are significant
-    on both data axes are colored in red if they are positive, and in blue
-    if they are negative.
+    in FC are colored in red if they are positive, and in blue if they are
+    negative.
 
     Parameters
     ----------
@@ -789,17 +938,15 @@ def plot_SC_FC_heterophilic_comparison(SC_receptors, FC_receptors, SC_layers,
     def scatterplot_significance_colored(X, Y):
 
         plt.scatter(
-            x=X['assort_z'], y=Y['assort_z'],
+            x=X['a_z'], y=Y['a_z'],
             color='lightgray', s=8, rasterized=True)
-        pos_sig_SC = (X['assort_p'] < 0.05) & (X['assort_z'] > 0)
-        pos_sig_FC = (Y['assort_p'] < 0.05) & (Y['assort_z'] > 0)
-        plt.scatter(x=X['assort_z'][(pos_sig_SC) & (pos_sig_FC)],
-                    y=Y['assort_z'][(pos_sig_SC) & (pos_sig_FC)],
+        pos_sig_FC = (Y['a_p_fdr'] < 0.05) & (Y['a_z'] > 0)
+        plt.scatter(x=X['a_z'][pos_sig_FC],
+                    y=Y['a_z'][pos_sig_FC],
                     color='#67001F',  s=8, rasterized=True)
-        neg_sig_SC = (X['assort_p'] < 0.05) & (X['assort_z'] < 0)
-        neg_sig_FC = (Y['assort_p'] < 0.05) & (Y['assort_z'] < 0)
-        plt.scatter(x=X['assort_z'][(neg_sig_SC) & (neg_sig_FC)],
-                    y=Y['assort_z'][(neg_sig_SC) & (neg_sig_FC)],
+        neg_sig_FC = (Y['a_p_fdr'] < 0.05) & (Y['a_z'] < 0)
+        plt.scatter(x=X['a_z'][neg_sig_FC],
+                    y=Y['a_z'][neg_sig_FC],
                     color='#053061', s=8, rasterized=True)
 
     fig = plt.figure(figsize=(2.3, 2.3))
@@ -816,15 +963,154 @@ def plot_SC_FC_heterophilic_comparison(SC_receptors, FC_receptors, SC_layers,
 
     # Compute correlation
     SC_a_z_all = np.concatenate(
-        (SC_receptors['assort_z'].flatten(),
-         SC_layers['assort_z'].flatten()),
+        (SC_receptors['a_z'].flatten(),
+         SC_layers['a_z'].flatten()),
         axis=0)
     FC_a_z_all = np.concatenate(
-        (FC_receptors['assort_z'].flatten(),
-         FC_layers['assort_z'].flatten()),
+        (FC_receptors['a_z'].flatten(),
+         FC_layers['a_z'].flatten()),
         axis=0)
     r, _ = pearsonr(SC_a_z_all, FC_a_z_all)
     plt.title(f"r={r:.2f}")
+
+    return fig
+
+
+def plot_PC1_assortativity_correlations(PC1_r, PC1_r_prod, data, z_assort,
+                                        barplot_size=(5, 2), grid_width=0.25):
+    '''
+    Function to plot results exploring the relationship between assortativity
+    and correlations with PC1 (SUPPLEMENTARY FIGURE 6)
+
+    Parameters
+    ----------
+    PC1_r: (m,) ndarray
+        Correlations between each brain map and the first component of the
+        network.
+    PC1_r_prod: (m, m) ndarray
+        Product of the correlations stored in PC1_r
+    data: dict
+        Dictionary storing either the laminar thickness or the receptor density
+        data.
+    z_assort: (m, m) ndarray
+        Z-assortativity (i.e. heterophilic mixing) of each pair of brain map.
+    barplot_size: tuple of floats
+        Size of the barplot figure.
+    grid_width: float
+        Width of the grid in the r-product heatmap figure.
+
+    Returns
+    -------
+    fig1: maptlotlib figure
+        Barplot of the correlations between brain maps and PC1.
+    fig2: matplotlib figure
+        Heatmap of the r-product for each pair of brain map.
+    fig3: matplotlib figure
+        Scatterplot of the relationship between r-product and z-assortativity.
+    reg: tuple
+        Tuple storing statistics of the regression plotted in fig3. This tuple
+        contains: (r, p, df, CI).
+    '''
+
+    labels = data['names']
+    n_annotations = len(PC1_r)
+
+    # plot barplot of correlations
+    order = np.argsort(PC1_r)
+    fig1 = plt.figure(figsize=barplot_size)
+    plt.bar(np.arange(n_annotations), PC1_r[order], edgecolor='black',
+            color='lightgray')
+    plt.xticks(np.arange(n_annotations),
+               labels=np.asarray(labels)[order],
+               rotation=90)
+    plt.xlabel("annotation")
+    plt.ylabel('r')
+
+    # Get upper triu indices of layer correlations
+    r_prod_ld = PC1_r_prod[np.tril_indices(n_annotations)]
+    a_z_ld = z_assort[np.tril_indices(n_annotations)]
+    X = a_z_ld
+    Y = r_prod_ld
+
+    # Plot scatterplot relationship between r (product) and z-assort
+    fig2, reg = plot_regression(X, Y, x_label='z-assort',
+                                y_label='r (product)', s=10,
+                                alpha=None, figsize=(2.5, 2.5))
+
+    # Plot heatmap of r (products)
+    m = max(abs(PC1_r_prod.min()), PC1_r_prod.max())
+    fig3 = plot_heatmap(PC1_r_prod, labels, labels,
+                        text=False, cmap=RdBu_11_r.mpl_colormap,
+                        vmin=-m, vmax=m, grid_width=grid_width,
+                        figsize=(3.4, 3.4), text_size=17)
+
+    return fig1, fig2, fig3, reg
+
+
+def boxplot(results, figsize=(2, 3), widths=0.8, showfliers=True,
+            edge_colors='black', face_colors='lightgray',
+            median_color=None, significants=None, positions=None, vert=True,
+            ax=None):
+    '''
+    Function to plot results in a boxplot
+
+    Parameters
+    ----------
+    results: (n_boxes, n_observations) ndarray
+        Results to be plotted in the boxplot
+    '''
+
+    # Setup the flierprops dictionary
+    flierprops = dict(marker='+',
+                      markerfacecolor='lightgray',
+                      markeredgecolor='lightgray')
+
+    # Initialize the figure (if no `ax` provided)
+    if ax is None:
+        fig = plt.figure(figsize=figsize, frameon=False)
+        ax = plt.gca()
+    else:
+        fig = plt.gcf()
+
+    n_boxes = len(results)
+
+    if positions is None:
+        positions = np.arange(1, n_boxes + 1)
+
+    if is_color_like(edge_colors):
+        edge_colors = [edge_colors] * n_boxes
+    if is_color_like(face_colors):
+        face_colors = [face_colors] * n_boxes
+
+    # Plot each box individually
+    for i in range(n_boxes):
+
+        bplot = ax.boxplot(results[i],
+                           widths=widths,
+                           showfliers=showfliers,
+                           patch_artist=True,
+                           zorder=0,
+                           flierprops=flierprops,
+                           showcaps=False,
+                           vert=vert,
+                           positions=[positions[i]])
+
+        for element in ['boxes', 'whiskers', 'fliers',
+                        'means', 'medians', 'caps']:
+            if element == 'medians' and median_color is not None:
+                plt.setp(bplot[element], color=median_color)
+            else:
+                plt.setp(bplot[element], color=edge_colors[i])
+
+        for patch in bplot['boxes']:
+
+            if significants is not None:
+                if significants[i]:
+                    patch.set(facecolor=face_colors[i])
+                else:
+                    patch.set(facecolor='white')
+            else:
+                patch.set(facecolor=face_colors[i])
 
     return fig
 
@@ -834,7 +1120,8 @@ RESULTS FUNCTIONS
 '''
 
 
-def generate_moran_nulls(scores, dist, n_nulls):
+def generate_moran_nulls(scores, network, n_nulls, species='non_human',
+                         hemiid=None):
     '''
     Function to generate Moran nulls. This function relies on the brainspace
     toolbox.
@@ -842,11 +1129,18 @@ def generate_moran_nulls(scores, dist, n_nulls):
     Parameters
     ----------
     scores: (n,) ndarray
-        Vector of annotation scores for individual brain regions.
-    dist: (n, n) ndarray
-        Matrix of distances between each pair of brain regions.
+        Annotation scores for which we want to generate a null distribution
+    network: dict
+        Dictionary storing relevant information about the network
     n_nulls: int
         Number of null annotations to generate.
+    species: str
+        The species for which we want to generate Moran nulls. If `human`, then
+        nulls preserve the homotopy across hemispheres and are computed using
+        the geodesic distance between parcels.
+    hemiid: (n,) ndarray
+        Label, for each parcel, indicating whether it is located in the left or
+        the right hemisphere. Used when the species is `human`.
 
     Returns
     -------
@@ -854,28 +1148,69 @@ def generate_moran_nulls(scores, dist, n_nulls):
         Array of null annotations
 
     '''
-    w = spatial_weights(dist)
+
+    if species == 'non_human':
+        dist = network['dist']
+    elif species == 'human':
+        dist = [network['geo_dist_L'], network['geo_dist_R']]
+
+    w = spatial_weights(dist, species=species, hemiid=hemiid)
 
     rand_seed = np.random.default_rng().integers(0, 2**32)
 
-    moranRandom = MoranRandomization(tol=1e-5, n_rep=n_nulls,
-                                     random_state=rand_seed)
-    moranRandom.fit(w)
-    nulls = moranRandom.randomize(scores)
+    if species == 'non_human':
+        moranRandom = MoranRandomization(tol=1e-5, n_rep=n_nulls,
+                                         random_state=rand_seed)
+        moranRandom.fit(w)
+        nulls = moranRandom.randomize(scores)
+
+    elif species == 'human':
+
+        right_id, left_id = hemiid == 'R', hemiid == 'L'
+        right_scores, left_scores = scores[right_id], scores[left_id]
+
+        # Generate nulls for right hemisphere
+        w_right = w[right_id, :][:, right_id]
+        moran_right = MoranRandomization(tol=1e-5, n_rep=n_nulls,
+                                         random_state=rand_seed)
+        moran_right.fit(w_right)
+        nulls_right = moran_right.randomize(right_scores)
+
+        # Generate nulls for left hemisphere
+        w_left = w[left_id, :][:, left_id]
+        moran_left = MoranRandomization(tol=1e-5, n_rep=n_nulls,
+                                        random_state=rand_seed)
+        moran_left.fit(w_left)
+        nulls_left = moran_left.randomize(left_scores)
+
+        # Concatenate the two
+        n_nodes = len(scores)
+        nulls = np.zeros((n_nulls, n_nodes))
+        nulls[:, right_id] = nulls_right
+        nulls[:, left_id] = nulls_left
 
     return nulls
 
 
-def spatial_weights(dist):
+def spatial_weights(dist, species='non_human', hemiid=None):
     '''
     Function to get the spatial weight matrix of our network used to generate
     moran spatial nulls.
 
     Parameters
     ----------
-    dist: (n, n) ndarray
+    dist: (n, n) ndarray or tuple
         Matrix storing the euclidean distances between each node in the
-        network.
+        network. If a tuple, it must represent the geodesic distance between
+        each parcel, separately for each connectome. With the left hemisphere
+        are the first entry in the tuple, followed by the right hemisphere.
+    species: str
+        The species for which we want to generate Moran nulls. If `human`, then
+        spatial weights are computed using the geodesic distance between
+        parcels.
+    hemiid: (n,) ndarray
+        Label, for each parcel, indicating whether it is located in the left or
+        the right hemisphere. Used when the species is `human`.
 
     Returns
     -------
@@ -884,7 +1219,15 @@ def spatial_weights(dist):
         network.
     '''
 
-    w = dist.copy()
+    if species == 'non_human':
+        w = dist.copy()
+
+    elif species == 'human':
+        w = np.zeros((len(hemiid), len(hemiid)))
+        right_id, left_id = hemiid == 'R', hemiid == 'L'
+        w[np.ix_(left_id, left_id)] = dist[0]
+        w[np.ix_(right_id, right_id)] = dist[1]
+
     w[w > 0] = 1/w[w > 0]
     np.fill_diagonal(w, 1)
 
@@ -892,10 +1235,11 @@ def spatial_weights(dist):
 
 
 def compute_standardized_assortativity(network, null_type, annotations,
-                                       directed=True):
+                                       directed=True, moran_kwargs=None,
+                                       species=None):
     '''
     Function to compute the standardized assortativity of a list of annotation
-    for a given network.
+    for a given networks.
 
     Parameters
     ----------
@@ -908,8 +1252,15 @@ def compute_standardized_assortativity(network, null_type, annotations,
         network dictionary.
     directed: bool
         Whether the network is directed or not. When the network is not
-        directed, setting this parameter to False will increase the speed of
+        directed, setting this parameter to `False` will increase the speed of
         the computations.
+    moran_kwargs: dict
+        Keyword arguments passed to the `generate_moran_nulls` function,
+        specifying the species for which we want to generate the null
+        distribution and the hemiids (if species is `human`).
+    species: str
+        Denotes the species associated with the data. This must be specified
+        when the null_type is `burt`.
 
     Returns
     -------
@@ -922,9 +1273,12 @@ def compute_standardized_assortativity(network, null_type, annotations,
         `assort_z`: standardized assortativity scores relative to the
             assortativity scores computed using the surrogate annotations.
         `assort_p`: p-value of the assortativity score.
-
     '''
+
     results = {}
+
+    if moran_kwargs is None:
+        moran_kwargs = {}
 
     for ann in annotations:
 
@@ -940,7 +1294,10 @@ def compute_standardized_assortativity(network, null_type, annotations,
         if null_type == 'spin':
             nulls = network[ann][network['spin_nulls']].T
         elif null_type == 'moran':
-            nulls = generate_moran_nulls(network[ann], network['dist'], 10000)
+            nulls = generate_moran_nulls(network[ann], network, 10000,
+                                         **moran_kwargs)
+        elif null_type == 'burt':
+            nulls = np.load(f"data/burt_nulls/{species}/{ann}.npy")
         results[ann][f'assort_{null_type}'] = wei_assort_batch(
             network['adj'], nulls, n_batch=100, directed=directed)
 
@@ -949,6 +1306,12 @@ def compute_standardized_assortativity(network, null_type, annotations,
             results[ann][f'assort_{null_type}'], results[ann]['assort'])
         results[ann]['assort_p'] = get_p_value(
             results[ann][f'assort_{null_type}'], results[ann]['assort'])
+
+    # compute fdr-corrected p-values
+    p_vals = [results[ann]['assort_p'] for ann in annotations]
+    _, p_fdr, _, _ = multipletests(p_vals, method='fdr_by')
+    for n, ann in enumerate(annotations):
+        results[ann]['assort_p_fdr'] = p_fdr[n]
 
     return results
 
@@ -991,6 +1354,7 @@ def compute_assortativity_thresholded(network, null_type, annotations,
             connectome.
 
     '''
+
     n_bins = len(percent_kept)
 
     results = {}
@@ -1000,6 +1364,7 @@ def compute_assortativity_thresholded(network, null_type, annotations,
         results[ann][f'assort_all_{null_type}'] = np.zeros((n_bins, 10000))
         results[ann]['assort_all_p'] = np.zeros((n_bins))
         results[ann]['assort_all_z'] = np.zeros((n_bins))
+        results[ann]['assort_all_p_fdr'] = np.zeros((n_bins))
 
         scores = network[ann]
         for i, percent in enumerate(tqdm(percent_kept)):
@@ -1017,8 +1382,7 @@ def compute_assortativity_thresholded(network, null_type, annotations,
             if null_type == 'spin':
                 nulls = network[ann][network['spin_nulls']].T
             elif null_type == 'moran':
-                nulls = generate_moran_nulls(
-                    network[ann], network['dist'], 10000)
+                nulls = generate_moran_nulls(network[ann], network, 10000)
             results[ann][f'assort_all_{null_type}'][i, :] = wei_assort_batch(
                 A, nulls, n_batch=100, directed=directed)
 
@@ -1030,11 +1394,18 @@ def compute_assortativity_thresholded(network, null_type, annotations,
                 results[ann][f'assort_all_{null_type}'][i, :],
                 results[ann]['assort_all'][i])
 
+    # compute FDR-corrected p-values
+    for i, percent in enumerate(tqdm(percent_kept)):
+        p_values = [results[ann]['assort_all_p'][i] for ann in annotations]
+        _, p_fdr, _, _ = multipletests(p_values, method='fdr_by')
+        for n, ann in enumerate(annotations):
+            results[ann]['assort_all_p_fdr'][i] = p_fdr[n]
+
     return results
 
 
 def compute_heterophilic_assortativity(network, attributes, permutations,
-                                       attribute_names):
+                                       attribute_names, mask=None):
     '''
     Function to compute the heterophilic assortativity between a list of
     annotations.
@@ -1052,6 +1423,9 @@ def compute_heterophilic_assortativity(network, attributes, permutations,
     attribute_names: list
         Names of each attribute. The index of an attribute's name indicate
         the row to which it is associated in the `attributes` array.
+    mask: (n_attributes, n_attributes) ndarray
+        Boolean array specifying the pair of attributes for which we want
+        to compute their heterophilic assortativity.
 
     Returns:
     -------
@@ -1059,13 +1433,13 @@ def compute_heterophilic_assortativity(network, attributes, permutations,
         Dictionary storing the results computed with this function. They
         include:
         `names`: Names of each attribute
-        `assort`: Mixing matrix storing the assortativity score for
+        `a`: Mixing matrix storing the assortativity score for
             each pair of annotation.
-        `assort_spin`: Mixing matrices storing the assortativity score for
+        `a_spin`: Mixing matrices storing the assortativity score for
             each each pair of annotation in permuted connectomes.
-        `assort_p`: Matrix of p-values associated with each assortativity
+        `a_p`: Matrix of p-values associated with each assortativity
             score.
-        `assort_z`: Mixing matrix of standardized assortativity scores for
+        `a_z`: Mixing matrix of standardized assortativity scores for
             each pair of annotation.
     '''
 
@@ -1074,34 +1448,73 @@ def compute_heterophilic_assortativity(network, attributes, permutations,
 
     A = network['adj']
 
+    if mask is None:
+        mask = np.ones((n_attributes, n_attributes), dtype=bool)
+
     results = {}
     results['names'] = attribute_names
-    results['assort'] = np.zeros((n_attributes, n_attributes))
-    results['assort_spin'] = np.zeros((n_perm, n_attributes, n_attributes))
-    results['assort_p'] = np.zeros((n_attributes, n_attributes))
-    results['assort_z'] = np.zeros((n_attributes, n_attributes))
+    results['a'] = np.zeros((n_attributes, n_attributes))
+    results['a_spin'] = np.zeros((n_perm, n_attributes, n_attributes))
+    results['a_p'] = np.zeros((n_attributes, n_attributes))
+    results['a_z'] = np.zeros((n_attributes, n_attributes))
 
-    for i in trange(n_attributes):
-        for j in trange(n_attributes):
+    # spun assortativity (change n_jobs param to run in parallel)
+    permutations = permutations.T.tolist()
+    results['a_spin'] = np.asarray(
+        Parallel(n_jobs=1)(
+            delayed(_compute_spun_hetero_assort)(A, perm, attributes, mask)
+            for A, perm, attributes, mask
+            in tqdm(zip(repeat(A, n_perm),
+                        permutations,
+                        repeat(attributes, n_perm),
+                        repeat(mask, n_perm)),
+                    total=n_perm)
+            )
+        )
 
+    for i in range(n_attributes):
+        for j in range(n_attributes):
             M = attributes[i, :]
             N = attributes[j, :]
+            if mask[i, j]:
+                # empirical assortativity
+                results['a'][i, j] = weighted_assort(A, M, N)
+                # significance
+                results['a_p'][i, j] = get_p_value(
+                    results['a_spin'][:, i, j], results['a'][i, j])
+                # standardized scores
+                results['a_z'][i, j] = standardize_scores(
+                    results['a_spin'][:, i, j], results['a'][i, j])
+            else:
+                results['a'][i, j] = np.nan
+                results['a_p'][i, j] = np.nan
+                results['a_z'][i, j] = np.nan
 
-            # empirical assortativity
-            results['assort'][i, j] = weighted_assort(A, M, N)
+    # Get FDR-corrected p-values
+    _, p_fdr, _, _ = multipletests(
+        results['a_p'][np.tril_indices(n_attributes)], method='fdr_by')
+    results['a_p_fdr'] = np.zeros(results['a_p'].shape)
+    results['a_p_fdr'][:] = np.nan
+    results['a_p_fdr'][np.tril_indices(n_attributes)] = p_fdr
 
-            # Spun assortativity
-            for k in range(n_perm):
-                perm_k = permutations[:, k]
-                A_perm = A[perm_k, :][:, perm_k]
-                results['assort_spin'][k, i, j] = weighted_assort(A_perm, M, N)
+    return results
 
-            # compute significance
-            results['assort_p'][i, j] = get_p_value(
-                results['assort_spin'][:, i, j], results['assort'][i, j])
-            # compute standardized scores
-            results['assort_z'][i, j] = standardize_scores(
-                results['assort_spin'][:, i, j], results['assort'][i, j])
+
+def _compute_spun_hetero_assort(A, perm, attributes, mask):
+    '''
+    Function used to compute heterophilic assortativity, in parallel
+    '''
+    n_attributes = len(attributes)
+    results = np.zeros((n_attributes, n_attributes))
+    A_perm = A[perm, :][:, perm]
+    for i in range(n_attributes):
+        for j in range(n_attributes):
+            M = attributes[i, :]
+            N = attributes[j, :]
+            if mask[i, j]:
+                results[i, j] = weighted_assort(A_perm, M, N)
+            else:
+                results[i, j] = np.nan
 
     return results
 
@@ -1113,7 +1526,7 @@ def compute_homophilic_ratio(network, annotations):
     Parameters
     ----------
     network: dict
-        Dictionary storing relevant information about the network
+        Dictionary storing relevant information about the network.
     annotations: list
         List of annotation names. These names should correspond to keys in the
         network dictionary.
@@ -1133,6 +1546,155 @@ def compute_homophilic_ratio(network, annotations):
         results[ann] = nodal_mean_diff / np.mean(M_diff, axis=0)
 
     return results
+
+
+def compute_partial_assortativity_all(network, annotations):
+    '''
+    Function to compute the partial assortativity of a list of annotations.
+
+    Parameters
+    ----------
+    network: dict
+        Dictionary storing relevant information about the network.
+    annotations: list
+        List of annotation names. These names should correspond to keys in the
+        network dictionary.
+
+    Return
+    -------
+    results: dict
+        Dictionary storing the partial assortativity of each annotation,
+        relative to the other annotations.
+    '''
+
+    # Initialize results dictionary
+    results = {}
+    n_keys = len(annotations)
+    results['keys'] = annotations
+    results['r'] = np.zeros((n_keys, n_keys))
+    results['r_perm'] = np.zeros((n_keys, n_keys, 1000))
+
+    # Setup important variables
+    A = network['adj'].copy()
+    edges = A > 0
+    edge_weights = A[edges]
+
+    # For each combination of annotation pair
+    for i, M in enumerate(annotations):
+        M_scores = zscore(network[M])
+        for j, N in enumerate(annotations):
+            N_scores = zscore(network[N])
+
+            # Compute results (empirical)
+            results['r'][i, j], Y_res_in, Y_res_out = partial_assortativity(
+                A, M_scores, N_scores)
+
+            # Compute results (permuted annotations)
+            if i == j:
+                results['r_perm'][i, j, :] = np.nan
+            else:
+                for k in trange(1000):
+                    results['r_perm'][i, j, k] = weighted_correlation(
+                        np.random.permutation(Y_res_in[:, 0]),
+                        Y_res_out[:, 0],
+                        edge_weights)
+
+    # Get p-values
+    results['p'] = get_p_value(results['r_perm'], results['r'], axis=2)
+    results['p_fdr'] = np.zeros(results['p'].shape)
+    for i in range(n_keys):
+        non_nan_ids = ~np.isnan(results['r_perm'][i, :, 0])
+        _, results['p_fdr'][i, non_nan_ids], _, _ = multipletests(
+            results['p'][i, non_nan_ids], method='fdr_by')
+
+    return results
+
+
+def correlate_with_PC(brain_maps, PC1):
+    '''
+    Function to compute the correlations between brain maps and the principal
+    component of network connetivity of a given network. This function also
+    returns the product of the correlation between each pair of brain maps.
+
+    Parameters
+    ----------
+    brain_maps: (n, m) ndarray
+        Brain maps. `n` denotes the number of nodes in each parcellated brain
+        maps. `m` denotes the total number of brain maps.
+    PC1: (n,) ndarray
+        First component of the adjacency matrix of the network.
+
+    Returns:
+
+    '''
+
+    _, n_maps = brain_maps.shape
+    r = np.zeros((n_maps))
+    r_prod = np.zeros((n_maps, n_maps))
+
+    for i in range(n_maps):
+        r[i], _ = pearsonr(PC1, brain_maps[:, i])
+
+    for i in range(n_maps):
+        for j in range(n_maps):
+            r_prod[i, j] = r[i] * r[j]
+
+    return r, r_prod
+
+
+def partial_assortativity(A, M, N):
+    '''
+    Function to compute the assortativity of annotation `M`, with the
+    annotation scores of `N` regressed out.
+
+    Parameters
+    ----------
+    A: (n, n) ndarray
+        Adjacency matrix of the network
+    M: (n,) ndarray
+        Vector of annotation scores for annotation `M`
+    N: (n,) ndarray
+        Vector of annotation scores for annotation `N`
+
+    Returns
+    -------
+    r: float
+        Partial assortativity
+    Y_res_in: (m,) ndarray
+        Residuals of the regression between N(in) and M(in)
+    Y_res_out: (m,) ndarray
+        Residuals of the regression between N(in) and M(out)
+    '''
+
+    def fit_model(X, Y, W):
+        ''' Fit a weighted linear model between two variables '''
+        reg = LinearRegression().fit(X, Y,  sample_weight=W)
+        Y_res = Y - reg.predict(X)  # residuals
+        return reg, Y_res
+
+    # Get info about the network
+    n_nodes = len(A)
+    edges = A > 0
+    edge_weights = A[edges]
+    edge_idx = np.flatnonzero(A)
+
+    # Get in- and out- annotations
+    N_in = N[np.floor_divide(edge_idx, n_nodes)]
+    M_in = M[np.floor_divide(edge_idx, n_nodes)]
+    M_out = M[np.mod(edge_idx, n_nodes)]
+
+    # Get residuals for in- and out- annotations
+    _, Y_res_out = fit_model(N_in[:, np.newaxis],
+                             M_out[:, np.newaxis],
+                             edge_weights)
+    _, Y_res_in = fit_model(N_in[:, np.newaxis],
+                            M_in[:, np.newaxis],
+                            edge_weights)
+
+    # Compute correlations for these residuals
+    r = weighted_correlation(Y_res_in[:, 0], Y_res_out[:, 0], edge_weights)
+
+    return r, Y_res_in, Y_res_out
 
 
 def edge_diff(M, N=None):
@@ -1164,3 +1726,273 @@ def edge_diff(M, N=None):
     diff = np.abs(M_in - M_out)
 
     return diff
+
+
+def weighted_correlation(x, y, w):
+    '''
+    Function to compute the weighted Pearsonr correlation between two
+    variables.
+
+    Parameters
+    ----------
+    x: (n,) ndarray
+        Independent variable
+    y: (n,) ndarray
+        Dependent variable
+    w: (n,) ndarray
+        Weights
+
+    Returns:
+    -------
+    r: float
+        Weighted correlation
+
+    '''
+
+    sum_w = np.sum(w)
+
+    x_bar = x - np.average(x, axis=None, weights=w)
+    y_bar = y - np.average(y, axis=None, weights=w)
+
+    cov_x_y = np.sum(w * x_bar * y_bar) / sum_w
+    cov_x_x = np.sum(w * x_bar * x_bar) / sum_w
+    cov_y_y = np.sum(w * y_bar * y_bar) / sum_w
+
+    return cov_x_y / np.sqrt(cov_x_x * cov_y_y)
+
+
+def get_PC1(A):
+    '''
+    Function to get the first principal component of an adjacency matrix
+
+    Parameters
+    ----------
+    A: (n, n) ndarray
+        Adjacency matrix
+
+    Returns
+    -------
+    PC1: (n,) ndarray
+        First principal component
+    '''
+
+    pca = PCA(n_components=10)
+    pca.fit(A)
+    return pca.components_[0, :]
+
+
+def weighted_multi_regression_and_dominance(A, network, Y_key, X_keys):
+
+    def powerset(iterable):
+        s = list(iterable)
+        return chain.from_iterable(combinations(s, r) for r in range(len(s)+1))
+
+    n_nodes = len(A)
+
+    # Dependent variable are the `Y` scores at the `out` endpoints
+    Y = network[Y_key]
+    Y = np.repeat(Y[np.newaxis, :], n_nodes, axis=0)[A > 0]
+
+    # Independent variables are the `X` scores at the `in` endpoints
+    X = {}
+    for X_key in X_keys:
+        X[X_key] = network[X_key]
+        X[X_key] = np.repeat(X[X_key][:, np.newaxis], n_nodes, axis=1)[A > 0]
+
+    # Weight of each sample (strength of connection)
+    weights = A[A > 0]
+
+    # Get powersets of variables
+    X_models = list(powerset(X_keys))
+
+    # Fit each subset
+    R2 = []
+    for X_model in X_models:
+        X_all = []
+        for i in range(len(X_model)):
+            X_all.append(X[X_model[i]])
+
+        if X_model != ():
+            X_all = np.array(X_all).T
+            reg = LinearRegression().fit(X_all, Y, sample_weight=weights)
+            R2.append(reg.score(X_all, Y, sample_weight=weights))
+        else:
+            R2.append(0)
+
+    dominance = []
+    # Compute relative increase in R2 for each X
+    for key in X_keys:
+
+        # Find models that use specific X as a regressor
+        X_models_key_id = []
+        X_models_key = []
+        for i, X_model in enumerate(X_models):
+            if key in X_model:
+                X_models_key.append(X_model)
+                X_models_key_id.append(i)
+
+        # For each, get the same model without specific X as a regressor
+        X_models_no_key_id = []
+        X_models_no_key = []
+        for X_model_key in X_models_key:
+            model = list(X_model_key)
+            model.remove(key)
+            X_models_no_key_id.append(X_models.index(tuple(model)))
+            X_models_no_key.append(model)
+
+        R2_array = np.array(R2)
+
+        R2_diff = R2_array[X_models_key_id] - R2_array[X_models_no_key_id]
+
+        dominance.append(R2_diff.mean())
+
+    return dominance, R2, X_models
+
+
+def reorganize_dominance_results(dominance_results, keys, n_nulls):
+
+    results = {}
+
+    heatmap = np.array([dominance_results[key]['dominance'] for key in keys])
+    percentages = heatmap / heatmap.sum(axis=1)[:, np.newaxis]
+
+    n_keys = len(keys)
+
+    # Compute p-values
+    dominance_p = np.zeros((n_keys, n_keys))
+    for n, key_n in enumerate(keys):
+        for m, key_m in enumerate(keys):
+            dominance_spin = [dominance_results[key_n]['dominance_spin'][i][m]
+                              for i in range(n_nulls)]
+            dominance = dominance_results[key_n]['dominance'][m]
+            dominance_p[n, m] = get_p_value(np.array(
+                dominance_spin), dominance)
+
+    results['keys'] = keys
+    results['dominance_percentage'] = percentages
+    results['dominance_p'] = dominance_p
+
+    results['R2'] = np.zeros((n_keys))
+    results['R2_spin'] = np.zeros((n_keys, n_nulls))
+    results['R2_p'] = np.zeros((n_keys))
+
+    for n, key_n in enumerate(keys):
+        results['R2'][n] = dominance_results[key_n]['R2'][-1]
+        for k in range(n_nulls):
+            results['R2_spin'][n, k] = dominance_results[key_n]['R2_spin'][k][-1]
+
+    for n in range(len(keys)):
+        results['R2_p'][n] = get_p_value(
+            results['R2_spin'][n, :], results['R2'][n])
+
+    _, results['R2_p_fdr'], _, _ = multipletests(
+        results['R2_p'], method='fdr_by')
+
+    return results
+
+
+def compute_spearman_assort(network, null_type, annotations,
+                            moran_kwargs=None):
+    '''
+    Function to compute the standardized assortativity of a list of annotations
+    for a given network, using a rank-based measure of correlation between
+    annotations (Spearman's rho).
+
+    Parameters
+    ----------
+    network: dict
+        Dictionary storing relevant information about the network
+    null_type: str
+        Type of null used to compute the standardized assortativity
+    annotations: list
+        List of annotation names. These names should correspond to keys in the
+        network dictionary.
+    moran_kwargs: dict
+        Keyword arguments passed to the `generate_moran_nulls` function,
+        specifying the species for which we want to generate the null
+        distribution and the hemiids (if species is `human`).
+
+    Returns
+    -------
+    results: dict
+        Dictionary storing the results computed with this function. They
+        include, for each annotation:
+        `assort`: assortativity score
+        `assort{null_type}`: assortativity scores computed using the surrogate
+            annotations.
+        `assort_z`: standardized assortativity scores relative to the
+            assortativity scores computed using the surrogate annotations.
+        `assort_p`: p-value of the assortativity score.
+    '''
+
+    def rank_edges(M_argsort, deg, edges):
+
+        deg_sorted = deg[M_argsort]
+        deg_cumsum = np.cumsum(deg_sorted)
+        M_ranked = deg_cumsum[M_argsort.argsort()][edges]
+
+        return M_ranked
+
+    if moran_kwargs is None:
+        moran_kwargs = {}
+
+    # Get info about the network
+    A = network['adj']
+    n_nodes = len(A)
+    edges = A > 0
+    edge_idx = np.flatnonzero(A)
+    in_edges = np.floor_divide(edge_idx, n_nodes)
+    in_deg = np.count_nonzero(A, axis=1)
+    out_edges = np.mod(edge_idx, n_nodes)
+    out_deg = np.count_nonzero(A, axis=0)
+
+    # Results dictionary
+    r = {}
+
+    for ann in annotations:
+
+        print(f"computing spearman's assortativity for: `{ann}`")
+
+        r[ann] = {}
+
+        # Load annotation
+        M = network[ann]
+
+        # Compute assortativity (empirical)
+        M_argsort = M.argsort()
+        M_in_ranked = rank_edges(M_argsort, in_deg, in_edges)
+        M_out_ranked = rank_edges(M_argsort, out_deg, out_edges)
+        r[ann]['assort'] = weighted_correlation(
+            M_in_ranked, M_out_ranked, A[edges])
+
+        # Get null distribution
+        if null_type == 'spin':
+            nulls = network[ann][network['spin_nulls']].T
+        elif null_type == 'moran':
+            nulls = generate_moran_nulls(network[ann], network, 10000,
+                                         **moran_kwargs)
+
+        r[ann][f'assort_{null_type}'] = np.zeros((10000))
+        for k in trange(10000):
+
+            # Compute assortativity (nulls)
+            M_null_argsort = nulls[k, :].argsort()
+            nulls_in_ranked = rank_edges(M_null_argsort, in_deg, in_edges)
+            nulls_out_ranked = rank_edges(M_null_argsort, out_deg, out_edges)
+
+            # weighted correlation
+            r[ann][f'assort_{null_type}'][k] = weighted_correlation(
+                nulls_in_ranked, nulls_out_ranked, A[edges])
+
+        r[ann]['assort_z'] = standardize_scores(
+            r[ann][f'assort_{null_type}'], r[ann]['assort'])
+        r[ann]['assort_p'] = get_p_value(
+            r[ann][f'assort_{null_type}'], r[ann]['assort'])
+
+    # compute fdr-corrected p-values
+    p_vals = [r[ann]['assort_p'] for ann in annotations]
+    _, p_fdr, _, _ = multipletests(p_vals, method='fdr_by')
+    for n, ann in enumerate(annotations):
+        r[ann]['assort_p_fdr'] = p_fdr[n]
+
+    return r
