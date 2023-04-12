@@ -7,8 +7,8 @@ results presented in "Assortative mixing in micro-architecturally annotated
 brain connectomes".
 
 The computation of some of the results presented in the paper takes a
-long time. Pre-computed results are therefore saved in the results/ directory
-of this repository.
+long time. Pre-computed results are therefore saved in the `results/`
+directory of this repository.
 
 The script is split into different cells (separated by `#%%`). Each cell
 represent lines of codes used to load the data, compute a specific result, or
@@ -20,12 +20,14 @@ RESULT 3: Standardized assortativity of micro-architectural annotations
 RESULT 4: Assortative mixing of long-range connections
 RESULTS 5: Heterophilic mixing
 RESULTS 6: Homophilic ratios
+RESULTS S1: Assortativity relative to spatially-naive nulls
 RESULTS S2: Sensitivity and replication (homophilic mixing) | SC
-RESULTS S3: Sensitivity and replication (homophilic mixing)
-RESULTS S4: Sensitivity and replication (homophilic mixing)
+RESULTS S3: Sensitivity and replication (homophilic mixing) | FC
+RESULTS S4: Sensitivity and replication (homophilic mixing) | animals
 RESULTS S5: Partial assortativity
 RESULTS S6: Multiple linear regression and dominance analysis
 RESULTS S7: Relationship between assortativity and PC1
+RESULTS S8: Sensitivity and replication (heterophilic mixing)
 RESULTS S9: Homophilic ratios in the functional connectome
 RESULTS S10: Sensitivity: Sensitivity and replication (homophilic ratios)
 
@@ -34,12 +36,14 @@ FIGURE 3: Standardized assortativity of micro-architectural annotations
 FIGURE 4: Assortative mixing of long-range connections
 FIGURE 5: Heterophilic mixing
 FIGURE 6: Local assortative mixing
+FIGURE S1: Assortativity relative to spatially-naive nulls
 FIGURE S2: Sensitivity and replication (homophilic mixing) | SC
 FIGURE S3: Sensitivity and replication (homophilic mixing) | FC
 FIGURE S4: Sensitivity and replication (homophilic mixing) | animals
 FIGURE S5: Partial assortativity
 FIGURE S6: Multiple linear regression and dominance analysis
 FIGURE S7: Relationship between PC1 and assortativity
+FIGURE S8: Sensitivity and replication (heterophilic mixing)
 FIGURE S9: Homophilic ratios in the functional connectome
 FIGURE S10: Sensitivity and replication (homophilic ratios)
 FIGURE S11: Homophilic ratios in the SC communities
@@ -51,7 +55,8 @@ FIGURE S12: Neurosynth correlations
 import os
 
 # CHANGE THIS TO THE PATH TO THE GIT-HUB REPOSITORY
-os.chdir((os.path.expanduser("~") + "/bazinet_assortativity"))
+os.chdir((os.path.expanduser("~") + "/OneDrive - McGill University/"
+          "projects (current)/assortativity/git-hub repository/bazinet_assortativity"))
 
 # IMPORT STATEMENTS
 import functions as fn
@@ -76,7 +81,7 @@ plt.rcParams.update({'axes.spines.right': False})
 # LOAD COLORMAPS
 cmaps = fn.get_colormaps()
 
-#%% DATA: Load data used in the experiments
+# %% DATA: Load data used in the experiments
 
 # Human connectomes
 human_SC = fn.load_data("data/human_SC.pickle")
@@ -114,7 +119,7 @@ laminar_thicknesses = fn.load_data("data/laminar_thicknesses.pickle")
 # Neurosynth
 neurosynth = fn.load_data("data/neurosynth.pickle")
 
-#%% RESULTS 3: Standardized assortativity of micro-architectural annotations
+# %% RESULTS 3: Standardized assortativity of micro-architectural annotations
 
 result1_path = "results/standardized_assortativity"
 
@@ -138,7 +143,7 @@ oh_results = fn.compute_standardized_assortativity(
     oh, 'moran', mouse_annotations, directed=True)
 fn.save_data(oh_results, f'{result1_path}/oh.pickle')
 
-#%% RESULTS 4: Assortative mixing of long-range connections
+# %% RESULTS 4: Assortative mixing of long-range connections
 
 result2_path = "results/assortativity_thresholded"
 
@@ -166,7 +171,7 @@ fn.save_data(oh_results, f'{result2_path}/oh.pickle')
 
 human_SC_results_2 = fn.load_data(f'{result2_path}/human_SC.pickle')
 
-#%% RESULTS 5: Heterophilic mixing
+# %% RESULTS 5: Heterophilic mixing
 
 result3_path = "results/heterophilic_assortativity"
 
@@ -210,7 +215,7 @@ FC_receptor_results = fn.compute_heterophilic_assortativity(
     receptor_densities['names'], mask=receptor_mask)
 fn.save_data(FC_receptor_results, f'{result3_path}/FC_receptor.pickle')
 
-#%% RESULTS 6: Homophilic ratios
+# %% RESULTS 6: Homophilic ratios
 
 '''
 Homophilic ratios
@@ -231,10 +236,10 @@ neurosynth_results['r'] = np.zeros((123))
 neurosynth_results['r_spin'] = np.zeros((123, 10000))
 for i in trange(123):
     neurosynth_results['r'][i], _ = pearsonr(
-        neurosynth['maps'][:,i], SC_ratios['mean'])
+        neurosynth['maps'][:, i], SC_ratios['mean'])
     for j in range(10000):
         spin = human_SC['spin_nulls'][:, j]
-        neurosynth_results['r_spin'][i,j], _ = pearsonr(
+        neurosynth_results['r_spin'][i, j], _ = pearsonr(
             neurosynth['maps'][spin, i], SC_ratios['mean'])
 neurosynth_results['p'] = np.zeros((123))
 for i in range(123):
@@ -273,7 +278,7 @@ for i in range(11):
 neurosynth_results['r_categories_p'] = np.zeros((11))
 for i in range(11):
     neurosynth_results['r_categories_p'][i] = fn.get_p_value(
-        neurosynth_results['r_categories_perm'][i,:],
+        neurosynth_results['r_categories_perm'][i, :],
         neurosynth_results['r_categories'][i])
 _, neurosynth_results['r_categories_p_fdr'], _, _ = multipletests(
     neurosynth_results['r_categories_p'], method='fdr_by')
@@ -281,7 +286,23 @@ _, neurosynth_results['r_categories_p_fdr'], _, _ = multipletests(
 # Save neurosynth results
 fn.save_data(neurosynth_results, "results/local_mixing/neurosynth.pickle")
 
-#%% RESULTS S2: Sensitivity and replication (homophilic mixing)
+# %% RESULTS S1: Assortativity relative to spatially-naive nulls
+
+result1_path = "results/standardized_assortativity"
+
+results = fn.compute_standardized_assortativity(
+    human_SC, 'perm', human_annotations, directed=False)
+fn.save_data(results, f'{result1_path}/human_SC_perm.pickle')
+
+results = fn.compute_standardized_assortativity(
+    human_FC, 'perm', human_annotations, directed=False)
+fn.save_data(results, f'{result1_path}/human_FC_perm.pickle')
+
+# %% RESULTS S2: Sensitivity and replication (homophilic mixing)
+
+'''
+Standardized assortativity
+'''
 
 result1_path = "results/standardized_assortativity"
 
@@ -303,7 +324,7 @@ fn.save_data(results, f'{result1_path}/human_SC_nolog.pickle')
 # SC_moran
 results = fn.compute_standardized_assortativity(
     human_SC, 'moran', human_annotations, directed=False,
-    moran_kwargs={'species':'human', 'hemiid':human_SC['hemiid']})
+    moran_kwargs={'species': 'human', 'hemiid': human_SC['hemiid']})
 fn.save_data(results, f'{result1_path}/human_SC_moran.pickle')
 
 # SC_burt
@@ -325,7 +346,62 @@ fn.save_data(results, f'{result1_path}/human_SC_1000.pickle')
 results = fn.compute_spearman_assort(human_SC, 'spin', human_annotations)
 fn.save_data(results, f'{result1_path}/human_SC_spearman.pickle')
 
-#%% RESULTS S3: Sensitivity and replication (homophilic mixing)
+'''
+Thresholded assortativity
+'''
+
+result2_path = "results/assortativity_thresholded"
+
+percent_kept = np.arange(5, 100, 5)
+
+# SC_s400
+results = fn.compute_assortativity_thresholded(
+    human_SC_s400, 'spin', human_annotations, percent_kept, directed=False)
+fn.save_data(results, f'{result2_path}/human_SC_s400.pickle')
+
+# SC_L
+results = fn.compute_assortativity_thresholded(
+    human_SC_L, 'spin', human_annotations, percent_kept, directed=False)
+fn.save_data(results, f'{result2_path}/human_SC_L.pickle')
+
+# SC_nolog
+results = fn.compute_assortativity_thresholded(
+    human_SC_nolog, 'spin', human_annotations, percent_kept, directed=False)
+fn.save_data(results, f'{result2_path}/human_SC_nolog.pickle')
+
+# SC_moran
+results = fn.compute_assortativity_thresholded(
+    human_SC, 'moran', human_annotations, percent_kept, directed=False,
+    moran_kwargs={'species': 'human', 'hemiid': human_SC['hemiid']})
+fn.save_data(results, f'{result2_path}/human_SC_moran.pickle')
+
+# SC_burt
+results = fn.compute_assortativity_thresholded(
+    human_SC, 'burt', human_annotations, percent_kept, directed=False,
+    species='human')
+fn.save_data(results, f'{result2_path}/human_SC_burt.pickle')
+
+# SC_219
+results = fn.compute_assortativity_thresholded(
+    human_SC_219, 'spin', human_annotations, percent_kept, directed=False)
+fn.save_data(results, f'{result2_path}/human_SC_219.pickle')
+
+# SC_1000
+results = fn.compute_assortativity_thresholded(
+    human_SC_1000, 'spin', human_annotations, percent_kept, directed=False,
+    n_nulls=5000)
+fn.save_data(results, f'{result2_path}/human_SC_1000.pickle')
+
+# Spearman's
+results = fn.compute_spearman_assort_thresholded(
+    human_SC, 'spin', human_annotations, percent_kept)
+fn.save_data(results, f'{result2_path}/human_SC_spearman.pickle')
+
+# %% RESULTS S3: Sensitivity and replication (homophilic mixing)
+
+'''
+Standardized assortativity
+'''
 
 result1_path = "results/standardized_assortativity"
 
@@ -352,7 +428,7 @@ fn.save_data(results, f'{result1_path}/human_FC_1000.pickle')
 # FC_moran
 results = fn.compute_standardized_assortativity(
     human_FC, 'moran', human_annotations, directed=False,
-    moran_kwargs={'species':'human', 'hemiid':human_FC['hemiid']})
+    moran_kwargs={'species': 'human', 'hemiid': human_FC['hemiid']})
 fn.save_data(results, f'{result1_path}/human_FC_moran.pickle')
 
 # FC_burt
@@ -364,7 +440,57 @@ fn.save_data(results, f'{result1_path}/human_FC_burt.pickle')
 results = fn.compute_spearman_assort(human_FC, 'spin', human_annotations)
 fn.save_data(results, f'{result1_path}/human_FC_spearman.pickle')
 
-#%% RESULTS S4: Sensitivity and replication (homophilic mixing)
+'''
+Thresholded assortativity
+'''
+
+result2_path = "results/assortativity_thresholded"
+
+percent_kept = np.arange(5, 100, 5)
+
+# FC_s400
+results = fn.compute_assortativity_thresholded(
+    human_FC_s400, 'spin', human_annotations, percent_kept, directed=False)
+fn.save_data(results, f'{result2_path}/human_FC_s400.pickle')
+
+# FC_L
+results = fn.compute_assortativity_thresholded(
+    human_FC_L, 'spin', human_annotations, percent_kept, directed=False)
+fn.save_data(results, f'{result2_path}/human_FC_L.pickle')
+
+# FC_moran
+results = fn.compute_assortativity_thresholded(
+    human_FC, 'moran', human_annotations, percent_kept, directed=False,
+    moran_kwargs={'species': 'human', 'hemiid': human_FC['hemiid']})
+fn.save_data(results, f'{result2_path}/human_FC_moran.pickle')
+
+# FC_burt
+results = fn.compute_assortativity_thresholded(
+    human_FC, 'burt', human_annotations, percent_kept, directed=False,
+    species='human')
+fn.save_data(results, f'{result2_path}/human_FC_burt.pickle')
+
+# FC_219
+results = fn.compute_assortativity_thresholded(
+    human_FC_219, 'spin', human_annotations, percent_kept, directed=False)
+fn.save_data(results, f'{result2_path}/human_FC_219.pickle')
+
+# FC_1000
+results = fn.compute_assortativity_thresholded(
+    human_FC_1000, 'spin', human_annotations, percent_kept, directed=False,
+    n_nulls=5000)
+fn.save_data(results, f'{result2_path}/human_FC_1000.pickle')
+
+# Spearman's
+results = fn.compute_spearman_assort_thresholded(
+    human_FC, 'spin', human_annotations, percent_kept)
+fn.save_data(results, f'{result2_path}/human_FC_spearman.pickle')
+
+# %% RESULTS S4: Sensitivity and replication (homophilic mixing)
+
+'''
+Standardized assortativity
+'''
 
 result1_path = "results/standardized_assortativity"
 
@@ -386,7 +512,37 @@ fn.save_data(results, f'{result1_path}/oh_burt.pickle')
 results = fn.compute_spearman_assort(oh, 'moran', mouse_annotations)
 fn.save_data(results, f'{result1_path}/oh_spearman.pickle')
 
-#%% RESULTS S5: Partial assortativity
+'''
+Thresholded assortativity
+'''
+
+result2_path = "results/assortativity_thresholded"
+
+percent_kept = np.arange(5, 100, 5)
+
+# burt nulls (scholtens)
+results = fn.compute_assortativity_thresholded(
+    scholtens, 'burt', macaque_annotations, percent_kept, directed=True,
+    species='macaque')
+fn.save_data(results, f'{result2_path}/scholtens_burt.pickle')
+
+# Spearman's (scholtens)
+results = fn.compute_spearman_assort_thresholded(
+    scholtens, 'moran', macaque_annotations, percent_kept)
+fn.save_data(results, f'{result2_path}/scholtens_spearman.pickle')
+
+# burt nulls (oh)
+results = fn.compute_assortativity_thresholded(
+    oh, 'burt', mouse_annotations, percent_kept, directed=True,
+    species='mouse')
+fn.save_data(results, f'{result2_path}/oh_burt.pickle')
+
+# Spearman's (oh)
+results = fn.compute_spearman_assort_thresholded(
+    oh, 'moran', mouse_annotations, percent_kept)
+fn.save_data(results, f'{result2_path}/oh_spearman.pickle')
+
+# %% RESULTS S5: Partial assortativity
 
 # human (structural)
 human_SC_partial_assort = fn.compute_partial_assortativity_all(
@@ -406,7 +562,7 @@ scholtens_partial_assort = fn.compute_partial_assortativity_all(
 fn.save_data(scholtens_partial_assort,
              "results/partial_assortativity/scholtens.pickle")
 
-#%% RESULTS S6: Multiple linear regression and dominance analysis
+# %% RESULTS S6: Multiple linear regression and dominance analysis
 
 '''
 Human connectome (structural)
@@ -484,7 +640,7 @@ fn.save_data(
 macaque connectome (scholtens)
 '''
 
-n_nulls=1000
+n_nulls = 1000
 A = scholtens['adj']
 dominance_results = {}
 for key in macaque_annotations:
@@ -523,7 +679,7 @@ dominance_results = fn.reorganize_dominance_results(
 fn.save_data(
     dominance_results, "results/regression_and_dominance/scholtens.pickle")
 
-#%% RESULTS S7: Relationship between assortativity and PC1
+# %% RESULTS S7: Relationship between assortativity and PC1
 
 PC1_results = {}
 
@@ -539,11 +695,12 @@ PC1_results['r_lay'], PC1_results['r_prod_lay'] = fn.correlate_with_PC(
     laminar_thicknesses['data'], -PC1_results['PC1'])
 
 PC1_results['layers'] = laminar_thicknesses['names']
-PC1_results['receptors'] = laminar_thicknesses['names']
+PC1_results['receptors'] = receptor_densities['names']
 
-fn.save_data(PC1_results, 'results/PC1_assortativity_relationship/PC1_results.pickle')
+fn.save_data(PC1_results,
+             'results/PC1_assortativity_relationship/PC1_results.pickle')
 
-#%% RESULTS S8: Sensitivity and replication (heterophilic mixing)
+# %% RESULTS S8: Sensitivity and replication (heterophilic mixing)
 
 connectomes = [human_SC_s400, human_SC_L, human_SC_219,
                human_FC_s400, human_FC_L, human_FC_219]
@@ -563,25 +720,27 @@ for connectome, name, density_data in zip(connectomes, names, densities):
         receptor_densities['names'], mask=receptor_mask)
     fn.save_data(results, f'{result3_path}/{name}_receptor.pickle')
 
-#%% RESULTS S9: Homophilic ratios in the functional connectome
+# %% RESULTS S9: Homophilic ratios in the functional connectome
 
 FC_ratios = fn.compute_homophilic_ratio(human_FC, human_annotations)
 FC_ratios['mean'] = np.mean([FC_ratios[ann]
                              for ann in human_annotations], axis=0)
 fn.save_data(FC_ratios, "results/local_mixing/FC_ratios.pickle")
 
-#%% RESULTS S10: Sensitivity and replication (homophilic ratios)
+# %% RESULTS S10: Sensitivity and replication (homophilic ratios)
 
-supplementary_connectomes = [human_SC_s400, human_SC_L, human_SC_219, human_SC_1000]
-labels = ['SC_s400', 'SC_L', 'SC_219', 'SC_1000']
+supplementary_connectomes = {'SC_s400': human_SC_s400,
+                             'SC_L': human_SC_L,
+                             'SC_219': human_SC_219,
+                             'SC_1000': human_SC_1000}
 
-for connectome, label in zip(supplementary_connectomes, labels):
+for label, connectome in supplementary_connectomes.items():
     ratios = fn.compute_homophilic_ratio(connectome, human_annotations)
     ratios['mean'] = np.mean([ratios[ann]
                              for ann in human_annotations], axis=0)
     fn.save_data(ratios, f"results/local_mixing/{label}_ratios.pickle")
 
-#%% FIGURE 1: Annotated connectomes
+# %% FIGURE 1: Annotated connectomes
 
 '''
 human (structural) connectome
@@ -594,7 +753,8 @@ adj[adj < np.percentile(adj, 98)] = 0
 # plot connectome
 fn.plot_network(
     adj, human_SC['coords'][:, :2], adj, None, edge_alpha=0.5, s=15,
-    figsize=(5, 5), node_cmap="Greys", edge_cmap=cmaps['Reds_3'], linewidth=0.5)
+    figsize=(5, 5), node_cmap="Greys", edge_cmap=cmaps['Reds_3'],
+    linewidth=0.5)
 save_path = "figures/figure 1/human (structural).png"
 plt.savefig(save_path, dpi=600, transparent=True)
 
@@ -638,7 +798,7 @@ adj, coords = fn.bilaterize_network(
 # plot connectome
 fn.plot_network(
     adj, coords[:, :2], adj, None, linewidth=1.5, edge_alpha=0.1,
-    s=100, figsize=(5,5), node_cmap="Greys",edge_cmap="Greens")
+    s=100, figsize=(5, 5), node_cmap="Greys", edge_cmap="Greens")
 plt.savefig("figures/figure 1/macaque (scholtens).png", dpi=600,
             transparent=True)
 
@@ -672,8 +832,8 @@ adj[adj > 0] = 1
 
 # plot connectome
 fn.plot_network(
-    adj, coords[:, [0,2]], None, None, linewidth=1.5, edge_alpha=0.01, s=50,
-    figsize=(5,5), node_cmap="Greys", edge_vmin=0, edges_color="#3f007d64")
+    adj, coords[:, [0, 2]], None, None, linewidth=1.5, edge_alpha=0.01, s=50,
+    figsize=(5, 5), node_cmap="Greys", edge_vmin=0, edges_color="#3f007d64")
 plt.savefig("figures/figure 1/mouse (oh).png",
             dpi=600, transparent=True)
 
@@ -687,12 +847,13 @@ for ann in mouse_annotations:
     scores = np.concatenate((oh[ann], oh[ann]))
 
     fn.plot_network(
-        None, coords[:, [0,2]], None, scores, linewidth=1.5, edge_alpha=0.01,
-        s=50, figsize=(5,5), view_edge=False, node_cmap=cmaps['Spectral_11_r'])
+        None, coords[:, [0, 2]], None, scores, linewidth=1.5, edge_alpha=0.01,
+        s=50, figsize=(5, 5), view_edge=False,
+        node_cmap=cmaps['Spectral_11_r'])
     plt.savefig(f"figures/figure 1/mouse - {ann}.png",
                 transparent=True, dpi=600)
 
-#%% FIGURE 3: Standardized assortativity of micro-architectural annotations
+# %% FIGURE 3: Standardized assortativity of micro-architectural annotations
 
 '''
 Panel (a): assortativity compared to spatial autocorrelation-preserving nulls
@@ -750,38 +911,38 @@ fig = fn.assortativity_barplot(assort_results, labels, non_sig_colors,
                                sig_colors, null_types)
 fig.savefig("figures/figure 3/barplot.svg")
 
-#%% FIGURE 4: Assortative mixing of long-range connections
+# %% FIGURE 4: Assortative mixing of long-range connections
 
 percent_kept = np.arange(5, 100, 5)
 
 # human (structural)
 fig = fn.plot_assortativity_thresholded(
-    "human_SC", 'spin', human_annotations, percent_kept,
+    "human_SC", human_annotations, percent_kept,
     ['#28c828ff', '#1a1ad6ff', '#f2b701ff', '#c828c6ff', '#1ad6d4ff'],
     ['#cdf5cdff', '#cacaf8ff', '#feeebaff', '#f5cdf5ff', '#caf8f8ff'])
 fig.savefig("figures/figure 4/lineplot_human_SC.svg")
 
 # human (functional)
 fig = fn.plot_assortativity_thresholded(
-    "human_FC", 'spin', human_annotations, percent_kept,
+    "human_FC", human_annotations, percent_kept,
     ['#28c828ff', '#1a1ad6ff', '#f2b701ff', '#c828c6ff', '#1ad6d4ff'],
     ['#cdf5cdff', '#cacaf8ff', '#feeebaff', '#f5cdf5ff', '#caf8f8ff'])
 fig.savefig("figures/figure 4/lineplot_human_FC.svg")
 
 # macaque (scholtens)
 fig = fn.plot_assortativity_thresholded(
-    "scholtens", 'moran', macaque_annotations, percent_kept,
+    "scholtens", macaque_annotations, percent_kept,
     ['#c828c6ff', '#1ad6d4ff', '#d61a1aff'],
     ['#f5cdf5ff', '#caf8f8ff', '#f8cacaff'])
 fig.savefig("figures/figure 4/lineplot_macaque.svg")
 
 # mouse (oh)
 fig = fn.plot_assortativity_thresholded(
-    "oh", 'moran', mouse_annotations, percent_kept,
+    "oh", mouse_annotations, percent_kept,
     ['#f2b701ff'], ['#feeebaff'])
 fig.savefig("figures/figure 4/lineplot_mouse.svg")
 
-#%% FIGURE 5: Heterophilic mixing
+# %% FIGURE 5: Heterophilic mixing
 
 path_results_fig5 = "results/heterophilic_assortativity"
 
@@ -856,7 +1017,7 @@ fn.plot_SC_FC_heterophilic_comparison(
     SC_receptor, FC_receptor, SC_laminar, FC_laminar)
 plt.savefig("figures/figure 5/scatterplot_SC_FC.svg")
 
-#%% FIGURE 6: Local assortative mixing
+# %% FIGURE 6: Local assortative mixing
 
 '''
 load results
@@ -924,8 +1085,13 @@ colors = np.array(np.arange(11), dtype='str')
 colors[r_categories < 0] = '#f7fcf0ff'
 colors[r_categories > 0] = '#084081ff'
 colors[pfdr_categories > 0.05] = 'white'
-plt.bar(np.arange(11), r_categories[order], color=colors[order], edgecolor='black')
-plt.xticks(np.arange(11), np.array(categories_labels)[order], rotation='vertical')
+plt.bar(np.arange(11),
+        r_categories[order],
+        color=colors[order],
+        edgecolor='black')
+plt.xticks(np.arange(11),
+           np.array(categories_labels)[order],
+           rotation='vertical')
 plt.savefig("figures/figure 6/barplot_neurosynth_categories.svg")
 
 # Retrieve some important data
@@ -946,9 +1112,9 @@ colors[neurosynth_results['r_categories_p_fdr'][order] > 0.05] = 'white'
 # Plot the figure
 plt.figure(figsize=(4, 2))
 flierprops = dict(marker='+', markerfacecolor='lightgray',
-                   markeredgecolor='lightgray')
+                  markeredgecolor='lightgray')
 for i, label in enumerate(categories_ordered):
-    category_id = np.where(np.array(categories_labels)==label)[0][0]
+    category_id = np.where(np.array(categories_labels) == label)[0][0]
     r_categories_all = r_all[categories == category_id+1]
 
     # Add jitter
@@ -970,12 +1136,28 @@ for i, label in enumerate(categories_ordered):
 plt.xticks(np.arange(11), categories_ordered, rotation='vertical')
 plt.savefig("figures/figure 6/boxplot_neurosynth_categories.svg", dpi=600)
 
-#%% FIGURE S2: Sensitivity and replication (homophilic mixing) | SC
+# %% FIGURE S1: Assortativity relative to spatially-naive nulls
+
+fig = fn.assortativity_boxplot(
+    "human_SC_perm", 'perm', human_annotations, face_color='#FCBBA1',
+    edge_color='#CB181D', figsize=(2.5, 2))
+fig.savefig("figures/figure s1/boxplot_human_SC_perm.svg", bbox_inches='tight')
+
+fig = fn.assortativity_boxplot(
+    "human_FC_perm", 'perm', human_annotations, face_color='#C6DBEF',
+    edge_color='#2171B5', figsize=(2.5, 2))
+fig.savefig("figures/figure s1/boxplot_human_FC_perm.svg", bbox_inches='tight')
+
+# %% FIGURE S2: Sensitivity and replication (homophilic mixing) | SC
 
 networks = ['SC_s400', 'SC_L', 'SC_219', 'SC_1000', 'SC_nolog',
             'SC_moran', 'SC_burt', 'SC_spearman']
 
-### Fetch results for all networks (to get the y-lims for the figures)
+'''
+Standardized assortativity
+'''
+
+# Fetch results for all networks (to get the y-lims for the figures)
 results_all = []
 for network in networks:
     results = fn.load_data(f"results/standardized_assortativity/human_{network}.pickle")
@@ -983,7 +1165,7 @@ for network in networks:
     results_all.append(w_ga_z)
 results_all = np.array(results_all)
 
-### Plot the barplots for each network
+# Plot the barplots for each network
 for name in networks:
 
     # Get relevant information
@@ -998,12 +1180,33 @@ for name in networks:
 
     plt.savefig(f"figures/figure s2/z_assort_{name}.svg", bbox_inches='tight')
 
-#%% FIGURE S3: Sensitivity and replication (homophilic mixing) | FC
+'''
+assortativity thresholded
+'''
+
+percent_kept = np.arange(5, 100, 5)
+networks = ['human_SC_s400', 'human_SC_L', 'human_SC_219', 'human_SC_1000',
+            'human_SC_nolog', 'human_SC_moran', 'human_SC_burt',
+            'human_SC_spearman']
+
+for name in networks:
+    fig = fn.plot_assortativity_thresholded(
+        name, human_annotations, percent_kept,
+        ['#28c828ff', '#1a1ad6ff', '#f2b701ff', '#c828c6ff', '#1ad6d4ff'],
+        ['#cdf5cdff', '#cacaf8ff', '#feeebaff', '#f5cdf5ff', '#caf8f8ff'],
+        figsize=(2.4, 1.5))
+    fig.savefig(f"figures/figure s2/thres_assort_{name}.svg", bbox_inches='tight')
+
+# %% FIGURE S3: Sensitivity and replication (homophilic mixing) | FC
+
+'''
+Standardized assortativity
+'''
 
 networks = ['FC_s400', 'FC_L', 'FC_219', 'FC_1000', 'FC_moran', 'FC_burt',
             'FC_spearman']
 
-### Fetch results for all networks (to get the y-lims for the figures)
+# Fetch results for all networks (to get the y-lims for the figures)
 results_all = []
 for network in networks:
     results = fn.load_data(f"results/standardized_assortativity/human_{network}.pickle")
@@ -1011,7 +1214,7 @@ for network in networks:
     results_all.append(w_ga_z)
 results_all = np.array(results_all)
 
-### Plot the barplots for each network
+# Plot the barplots for each network
 for name in networks:
 
     # Get relevant information
@@ -1026,15 +1229,31 @@ for name in networks:
 
     plt.savefig(f"figures/figure s3/z_assort_{name}.svg", bbox_inches='tight')
 
-#%% FIGURE S4: Sensitivity and replication (homophilic mixing) | animals
+'''
+assortativity thresholded
+'''
+
+percent_kept = np.arange(5, 100, 5)
+networks = ['human_FC_s400', 'human_FC_L', 'human_FC_219', 'human_FC_1000',
+            'human_FC_moran', 'human_FC_burt', 'human_FC_spearman']
+
+for name in networks:
+    fig = fn.plot_assortativity_thresholded(
+        name, human_annotations, percent_kept,
+        ['#28c828ff', '#1a1ad6ff', '#f2b701ff', '#c828c6ff', '#1ad6d4ff'],
+        ['#cdf5cdff', '#cacaf8ff', '#feeebaff', '#f5cdf5ff', '#caf8f8ff'],
+        figsize=(2.4, 1.5))
+    fig.savefig(f"figures/figure s3/thres_assort_{name}.svg", bbox_inches='tight')
+
+# %% FIGURE S4: Sensitivity and replication (homophilic mixing) | animals
 
 '''
-panel (a): macaque connectome
+Standardized assortativity | panel (a): macaque connectome
 '''
 
 networks = ['scholtens_burt', 'scholtens_spearman']
 
-### Fetch results for all networks (to get the y-lims for the figures)
+# Fetch results for all networks (to get the y-lims for the figures)
 results_all = []
 for network in networks:
     results = fn.load_data(f"results/standardized_assortativity/{network}.pickle")
@@ -1042,7 +1261,7 @@ for network in networks:
     results_all.append(w_ga_z)
 results_all = np.array(results_all)
 
-### Plot the barplots for each network
+# Plot the barplots for each network
 for name in networks:
 
     # Get relevant information
@@ -1059,12 +1278,12 @@ for name in networks:
     plt.savefig(f"figures/figure s4/z_assort_{name}.svg", bbox_inches='tight')
 
 '''
-panel (b): mouse connectome
+Standardized assortativity | panel (b): mouse connectome
 '''
 
 networks = ['oh_burt', 'oh_spearman']
 
-### Fetch results for all networks (to get the y-lims for the figures)
+# Fetch results for all networks (to get the y-lims for the figures)
 results_all = []
 for network in networks:
     results = fn.load_data(f"results/standardized_assortativity/{network}.pickle")
@@ -1072,7 +1291,7 @@ for network in networks:
     results_all.append(w_ga_z)
 results_all = np.array(results_all)
 
-### Plot the barplots for each network
+# Plot the barplots for each network
 for name in networks:
 
     # Get relevant information
@@ -1086,9 +1305,47 @@ for name in networks:
                              ylim=(results_all.min(), results_all.max()),
                              tight_layout=False)
 
-    plt.savefig(f"figures/figure s4/z_assort_{name}.svg", bbox_inches='tight')
+    plt.savefig(f"figures/figure s4/z_assort_{name}.svg",
+                bbox_inches='tight')
 
-#%% FIGURE S5: Partial assortativity
+'''
+Thresholded assortativity | panels (a)
+'''
+
+percent_kept = np.arange(5, 100, 5)
+
+networks = ['scholtens_burt', 'scholtens_spearman']
+
+for name in networks:
+    fig = fn.plot_assortativity_thresholded(
+        name, macaque_annotations, percent_kept,
+        ['#c828c6ff', '#1ad6d4ff', '#d61a1aff'],
+        ['#f5cdf5ff', '#caf8f8ff', '#f8cacaff'],
+        figsize=(2.4, 1.5))
+    fig.savefig(f"figures/figure s4/thres_assort_{name}.svg",
+                bbox_inches='tight')
+
+temp = fn.load_data("results/assortativity_thresholded/scholtens_spearman.pickle")
+
+'''
+Thresholded assortativity | panels (b)
+'''
+
+percent_kept = np.arange(5, 100, 5)
+
+networks = ['oh_burt', 'oh_spearman']
+
+for name in networks:
+    fig = fn.plot_assortativity_thresholded(
+        name, mouse_annotations, percent_kept,
+        ['#f2b701ff'],
+        ['#feeebaff'],
+        figsize=(2.4, 1.5))
+    fig.savefig(f"figures/figure s4/thres_assort_{name}.svg",
+                bbox_inches='tight')
+
+
+# %% FIGURE S5: Partial assortativity
 
 '''
 panel (a): human (structural)
@@ -1132,13 +1389,15 @@ fn.plot_heatmap(results['r'], results['keys'], results['keys'],
                 tight_layout=False)
 plt.savefig("figures/figure s5/scholtens_heatmap.svg")
 
-#%% FIGURE S6: Multiple linear regression and dominance analysis
+# %% FIGURE S6: Multiple linear regression and dominance analysis
+
+results_path = "results/regression_and_dominance"
 
 '''
 human (SC)
 '''
 
-dominance_results = fn.load_data("results/regression_and_dominance/human_SC.pickle")
+dominance_results = fn.load_data(f"{results_path}/human_SC.pickle")
 
 fn.boxplot(np.flip(dominance_results['R2_spin']), vert=False,
            edge_colors='#cb181dff', face_colors='#fcbba1ff',
@@ -1159,7 +1418,7 @@ plt.savefig("figures/figure s6/human_SC_dominance.svg", dpi=600)
 human (FC)
 '''
 
-dominance_results = fn.load_data("results/regression_and_dominance/human_FC.pickle")
+dominance_results = fn.load_data(f"{results_path}/human_FC.pickle")
 
 fn.boxplot(np.flip(dominance_results['R2_spin']), vert=False,
            edge_colors='#2171b5ff', face_colors='#c6dbefff',
@@ -1180,7 +1439,7 @@ plt.savefig("figures/figure s6/human_FC_dominance.svg", dpi=600)
 scholtens
 '''
 
-dominance_results = fn.load_data("results/regression_and_dominance/scholtens.pickle")
+dominance_results = fn.load_data(f"{results_path}/scholtens.pickle")
 
 fn.boxplot(np.flip(dominance_results['R2_spin']), vert=False,
            edge_colors='#c7e9c0ff', face_colors='#238b45ff',
@@ -1197,7 +1456,7 @@ fn.plot_heatmap(dominance_results['dominance_percentage'],
                 text_size=11, tight_layout=False)
 plt.savefig("figures/figure s6/scholtens_dominance.svg", dpi=600)
 
-#%% FIGURE S7: Relationship between PC1 and assortativity
+# %% FIGURE S7: Relationship between PC1 and assortativity
 
 PC1_results = fn.load_data(
     'results/PC1_assortativity_relationship/PC1_results.pickle')
@@ -1261,16 +1520,19 @@ panel (d): FC PC1 and z-assortativity (receptors)
 
 fig1, fig2, fig3, reg = fn.plot_PC1_assortativity_correlations(
     PC1_results['r_rec'], PC1_results['r_prod_rec'], receptor_densities,
-    hetero_mix_FC_receptors['a_z'], barplot_size=(5,2), grid_width=0.25)
+    hetero_mix_FC_receptors['a_z'], barplot_size=(5, 2), grid_width=0.25)
 fig1.savefig("figures/figure s7/correlation_PC1_receptors.svg")
-fig2.savefig("figures/figure s7/correlation_zassort_rprod_receptors.svg", dpi=300)
-fig3.savefig("figures/figure s7/heatmap_rprod_receptors.svg", dpi=300)
+fig2.savefig("figures/figure s7/correlation_zassort_rprod_receptors.svg",
+             dpi=300)
+fig3.savefig("figures/figure s7/heatmap_rprod_receptors.svg",
+             dpi=300)
 
-#%% FIGURE S8: Sensitivity and replication (heterophilic mixing)
+# %% FIGURE S8: Sensitivity and replication (heterophilic mixing)
 
 main_data = ['SC', 'SC', 'SC', 'FC', 'FC', 'FC']
 supp_data = ['SC_s400', 'SC_L', 'SC_219', 'FC_s400', 'FC_L', 'FC_219']
-names = ['HCP - 400', 'HCP - left', 'LAU - 219', 'HCP - 400', 'HCP - left', 'LAU - 219']
+names = ['HCP - 400', 'HCP - left', 'LAU - 219',
+         'HCP - 400', 'HCP - left','LAU - 219']
 
 correlations = {}
 for main, supp, name in zip(main_data, supp_data, names):
@@ -1284,7 +1546,11 @@ for main, supp, name in zip(main_data, supp_data, names):
     a_z_supp = fn.fill_triu(results_supp['a_z'])
 
     plt.figure(figsize=(2.3, 2.3))
-    plt.scatter(x=a_z_supp, y=a_z_main, color='lightgray', s=8, rasterized=True)
+    plt.scatter(x=a_z_supp,
+                y=a_z_main,
+                color='lightgray',
+                s=8,
+                rasterized=True)
     plt.xlabel(name)
     plt.ylabel("HCP - 800")
     X = a_z_main.flatten()
@@ -1303,7 +1569,7 @@ for main, supp, name in zip(main_data, supp_data, names):
 
     correlations[f'{supp}'] = (r, p, len(X)-2, CI)
 
-#%% FIGURE S9: Homophilic ratios in the functional connectome
+# %% FIGURE S9: Homophilic ratios in the functional connectome
 
 # Load results
 FC_ratios = fn.load_data("results/local_mixing/FC_ratios.pickle")
@@ -1330,7 +1596,7 @@ for ann in human_annotations:
     dot_image.savefig(f"figures/figure s9/homophilic_ratio_dot_{ann}.png",
                       dpi=600, transparent=True)
 
-#%% FIGURE S10: Sensitivity and replication (homophilic ratios)
+# %% FIGURE S10: Sensitivity and replication (homophilic ratios)
 
 info = [[human_SC_s400, 'SC_s400', '', fetch_schaefer2018()['400Parcels7Networks'], 400],
         [human_SC_L, 'SC_L', 'L', fetch_schaefer2018()['800Parcels7Networks'], 800],
@@ -1368,7 +1634,7 @@ for connectome, label, hemi, (lhannot, rhannot), n_nodes in info:
             f"figures/figure s10/homophilic_ratio_dot_{label}_{ann}.png",
             dpi=600, transparent=True)
 
-#%% FIGURE S11: Homophilic ratios in the SC communities
+# %% FIGURE S11: Homophilic ratios in the SC communities
 
 '''
 panel (a): communities of the structural connectome
@@ -1441,7 +1707,7 @@ plt.ylabel("conn/all ratio (average)")
 plt.tight_layout()
 plt.savefig("figures/figure s11/ratios_mcd_communities.svg")
 
-#%% FIGURE S12: Neurosynth correlations
+# %% FIGURE S12: Neurosynth correlations
 
 neurosynth_results = fn.load_data("results/local_mixing/neurosynth.pickle")
 
@@ -1461,7 +1727,10 @@ r_negatives = r_ordered[r_ordered < 0]
 colors = np.asarray(['white'] * len(r_negatives), dtype=object)
 colors[sigs_neg[r_ordered < 0]] = '#f7fcf0ff'
 fig_positive = plt.figure(figsize=(9.2, 3))
-plt.bar(np.arange(len(r_negatives)), r_negatives, color=colors, edgecolor='black')
+plt.bar(np.arange(len(r_negatives)),
+        r_negatives,
+        color=colors,
+        edgecolor='black')
 plt.xticks(np.arange(len(r_negatives)),
            terms_ordered[r_ordered < 0],
            rotation=90,
@@ -1474,12 +1743,13 @@ r_positives = r_ordered[r_ordered > 0]
 colors = np.asarray(['white'] * len(r_positives), dtype=object)
 colors[sigs_pos[r_ordered > 0]] = '#084081ff'
 fig_negative = plt.figure(figsize=(9.2, 3))
-plt.bar(np.arange(len(r_positives)), r_positives, color=colors, edgecolor='black')
+plt.bar(np.arange(len(r_positives)),
+        r_positives,
+        color=colors,
+        edgecolor='black')
 plt.xticks(np.arange(len(r_positives)),
            terms_ordered[r_ordered > 0],
            rotation=90,
            fontsize=8)
 plt.ylabel("Pearson's r")
 plt.savefig("figures/figure s12/neurosynth_correlations_positive.svg")
-
-

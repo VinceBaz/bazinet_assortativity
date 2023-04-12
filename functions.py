@@ -621,8 +621,9 @@ def assortativity_barplot(results, annotation_labels, non_sig_colors,
     return fig
 
 
-def plot_assortativity_thresholded(network_name, null_type, annotations,
-                                   percent_kept, sig_colors, non_sig_colors):
+def plot_assortativity_thresholded(network_name, annotations, percent_kept,
+                                   sig_colors, non_sig_colors,
+                                   figsize=(3.9, 1.8)):
     '''
     Function to plot lineplots of the standardized assortativity of annotations
     as a function of the percentile of short-range connections removed from the
@@ -633,9 +634,6 @@ def plot_assortativity_thresholded(network_name, null_type, annotations,
     network_name: str
         Name of the network. This is used to load the necessary results in
         stored in `results/assortativity_thresholded/{network_name}.pickle`.
-    null_type: str
-        Type of the null model used to compute the null distribution of
-        assortativity results.
     annotations: list
         List of annotation names that we want to include in the figure.
     percent_kept: array-like
@@ -658,7 +656,7 @@ def plot_assortativity_thresholded(network_name, null_type, annotations,
     results = load_data(
         f"results/assortativity_thresholded/{network_name}.pickle")
 
-    fig = plt.figure(figsize=(3.9, 1.8))
+    fig = plt.figure(figsize=figsize)
     for i, key in enumerate(annotations):
 
         assort_p_fdr = results[key]['assort_all_p_fdr']
@@ -692,7 +690,7 @@ def plot_assortativity_thresholded(network_name, null_type, annotations,
     plt.gca().xaxis.set_major_locator(MultipleLocator(10))
     plt.gca().xaxis.set_minor_locator(MultipleLocator(5))
     sns.despine()
-    plt.legend()
+    plt.legend(bbox_to_anchor=(1.04, 1), loc='upper left')
 
     return fig
 
@@ -1246,7 +1244,7 @@ def compute_standardized_assortativity(network, null_type, annotations,
     network: dict
         Dictionary storing relevant information about the network
     null_type: str
-        Type of null used to compute the standardized assortativity
+        Type of null used to compute the standardized assortativity.
     annotations: list
         List of annotation names. These names should correspond to keys in the
         network dictionary.
@@ -1290,14 +1288,11 @@ def compute_standardized_assortativity(network, null_type, annotations,
         results[ann]['assort'] = weighted_assort(
             network['adj'], network[ann], directed=directed)
 
+        # get null annotations
+        nulls = _get_null_annotations(
+            network, ann, null_type, moran_kwargs, species)
+
         # assortativity with surrogate annotations
-        if null_type == 'spin':
-            nulls = network[ann][network['spin_nulls']].T
-        elif null_type == 'moran':
-            nulls = generate_moran_nulls(network[ann], network, 10000,
-                                         **moran_kwargs)
-        elif null_type == 'burt':
-            nulls = np.load(f"data/burt_nulls/{species}/{ann}.npy")
         results[ann][f'assort_{null_type}'] = wei_assort_batch(
             network['adj'], nulls, n_batch=100, directed=directed)
 
@@ -1317,7 +1312,9 @@ def compute_standardized_assortativity(network, null_type, annotations,
 
 
 def compute_assortativity_thresholded(network, null_type, annotations,
-                                      percent_kept, directed=True):
+                                      percent_kept, directed=True,
+                                      moran_kwargs=None, species=None,
+                                      n_nulls=10000):
     '''
     Function to compute the standardized assortativity of a list of annotation
     for a given network that is thresholded on the basis of the length
@@ -1339,7 +1336,15 @@ def compute_assortativity_thresholded(network, null_type, annotations,
         Whether the network is directed or not. When the network is not
         directed, setting this parameter to False will increase the speed of
         the computations.
-
+    moran_kwargs: dict
+        Keyword arguments passed to the `generate_moran_nulls` function,
+        specifying the species for which we want to generate the null
+        distribution and the hemiids (if species is `human`).
+    species: str
+        Denotes the species associated with the data. This must be specified
+        when the null_type is `burt`.
+    n_nulls: int
+        Numbwer of null annotations in the null distribution.
     Returns
     -------
     results: dict
@@ -1355,18 +1360,24 @@ def compute_assortativity_thresholded(network, null_type, annotations,
 
     '''
 
+    if moran_kwargs is None:
+        moran_kwargs = {}
+
     n_bins = len(percent_kept)
 
     results = {}
     for ann in annotations:
         results[ann] = {}
         results[ann]['assort_all'] = np.zeros((n_bins))
-        results[ann][f'assort_all_{null_type}'] = np.zeros((n_bins, 10000))
+        results[ann][f'assort_all_{null_type}'] = np.zeros((n_bins, n_nulls))
         results[ann]['assort_all_p'] = np.zeros((n_bins))
         results[ann]['assort_all_z'] = np.zeros((n_bins))
         results[ann]['assort_all_p_fdr'] = np.zeros((n_bins))
 
-        scores = network[ann]
+        # get null annotations
+        nulls = _get_null_annotations(
+            network, ann, null_type, moran_kwargs, species)
+
         for i, percent in enumerate(tqdm(percent_kept)):
 
             # threshold connectomes (remove short-range connections)
@@ -1376,13 +1387,9 @@ def compute_assortativity_thresholded(network, null_type, annotations,
             A[network['dist'] < threshold] = 0
 
             # compute assortativity with empirical annotation
-            results[ann]['assort_all'][i] = weighted_assort(A, scores)
+            results[ann]['assort_all'][i] = weighted_assort(A, network[ann])
 
             # compute assortativity with surrogate annotations
-            if null_type == 'spin':
-                nulls = network[ann][network['spin_nulls']].T
-            elif null_type == 'moran':
-                nulls = generate_moran_nulls(network[ann], network, 10000)
             results[ann][f'assort_all_{null_type}'][i, :] = wei_assort_batch(
                 A, nulls, n_batch=100, directed=directed)
 
@@ -1891,8 +1898,74 @@ def reorganize_dominance_results(dominance_results, keys, n_nulls):
     return results
 
 
+def spearman_assortativity(A, M, network_metrics=None):
+    '''
+    Function to compuite the standardized assortativity of an annotation `M`,
+    with respect to a give network `A`.
+
+    Parameters
+    ----------
+    A: (n, n) ndarray
+        Adjacency matrix of the network.
+    M: (n,) ndarray
+        Annotation scores.
+    network_metrics: dict
+        Dictionary storing network metrics which can be used to quicken the
+        computations. Inputting these metrics is useful when we need to
+        compute the assortativity of multiple annotations on a single network
+        (it avoids computing the same metrics multiple time). These metrics
+        include:
+        `in_edges, out_edges`: (2m,) ndarray
+            Id of the nodes at the in- or out- edge points for each edge in the
+            network. Inputing this parameter will quicken the computations.
+            This is useful when we need to compute the assortativity of
+            multiple annotations on a single network (it avoids computing the
+            same network metrics multiple time).
+        `in_deg, out_deg`: (n,) ndarray
+            In- and out- degree of each node in the network. Inputing this
+            parameter will quicken the computations. Again, this is useful when
+            we need to compute the assortativity of multiple annotations on a
+            single network.
+
+    Returns
+    -------
+    rho: spearman assortativity coefficient
+    '''
+
+    if network_metrics is None:
+        n_nodes = len(A)
+        edge_idx = np.flatnonzero(A)
+        in_edges = np.floor_divide(edge_idx, n_nodes)
+        in_deg = np.count_nonzero(A, axis=1)
+        out_edges = np.mod(edge_idx, n_nodes)
+        out_deg = np.count_nonzero(A, axis=0)
+        edges = A > 0
+    else:
+        in_edges = network_metrics['in_edges']
+        in_deg = network_metrics['in_deg']
+        out_edges = network_metrics['out_edges']
+        out_deg = network_metrics['out_deg']
+        edges = network_metrics['edges']
+
+    M_argsort = M.argsort()
+    M_in_ranked = _rank_edges(M_argsort, in_deg, in_edges)
+    M_out_ranked = _rank_edges(M_argsort, out_deg, out_edges)
+    rho = weighted_correlation(M_in_ranked, M_out_ranked, A[edges])
+
+    return rho
+
+
+def _rank_edges(M_argsort, deg, edges):
+
+    deg_sorted = deg[M_argsort]
+    deg_cumsum = np.cumsum(deg_sorted)
+    M_ranked = deg_cumsum[M_argsort.argsort()][edges]
+
+    return M_ranked
+
+
 def compute_spearman_assort(network, null_type, annotations,
-                            moran_kwargs=None):
+                            moran_kwargs=None, species=None):
     '''
     Function to compute the standardized assortativity of a list of annotations
     for a given network, using a rank-based measure of correlation between
@@ -1911,7 +1984,9 @@ def compute_spearman_assort(network, null_type, annotations,
         Keyword arguments passed to the `generate_moran_nulls` function,
         specifying the species for which we want to generate the null
         distribution and the hemiids (if species is `human`).
-
+    species: str
+        Denotes the species associated with the data. This must be specified
+        when the null_type is `burt`.
     Returns
     -------
     results: dict
@@ -1925,26 +2000,11 @@ def compute_spearman_assort(network, null_type, annotations,
         `assort_p`: p-value of the assortativity score.
     '''
 
-    def rank_edges(M_argsort, deg, edges):
-
-        deg_sorted = deg[M_argsort]
-        deg_cumsum = np.cumsum(deg_sorted)
-        M_ranked = deg_cumsum[M_argsort.argsort()][edges]
-
-        return M_ranked
-
     if moran_kwargs is None:
         moran_kwargs = {}
 
-    # Get info about the network
-    A = network['adj']
-    n_nodes = len(A)
-    edges = A > 0
-    edge_idx = np.flatnonzero(A)
-    in_edges = np.floor_divide(edge_idx, n_nodes)
-    in_deg = np.count_nonzero(A, axis=1)
-    out_edges = np.mod(edge_idx, n_nodes)
-    out_deg = np.count_nonzero(A, axis=0)
+    # Get network metrics (for spearman assortativity computation)
+    network_metrics = _get_network_metrics(network['adj'])
 
     # Results dictionary
     r = {}
@@ -1959,30 +2019,17 @@ def compute_spearman_assort(network, null_type, annotations,
         M = network[ann]
 
         # Compute assortativity (empirical)
-        M_argsort = M.argsort()
-        M_in_ranked = rank_edges(M_argsort, in_deg, in_edges)
-        M_out_ranked = rank_edges(M_argsort, out_deg, out_edges)
-        r[ann]['assort'] = weighted_correlation(
-            M_in_ranked, M_out_ranked, A[edges])
+        r[ann]['assort'] = spearman_assortativity(A, M, network_metrics)
 
         # Get null distribution
-        if null_type == 'spin':
-            nulls = network[ann][network['spin_nulls']].T
-        elif null_type == 'moran':
-            nulls = generate_moran_nulls(network[ann], network, 10000,
-                                         **moran_kwargs)
+        nulls = _get_null_annotations(
+            network, ann, null_type, moran_kwargs, species)
 
+        # Compute assortativity (nulls)
         r[ann][f'assort_{null_type}'] = np.zeros((10000))
         for k in trange(10000):
-
-            # Compute assortativity (nulls)
-            M_null_argsort = nulls[k, :].argsort()
-            nulls_in_ranked = rank_edges(M_null_argsort, in_deg, in_edges)
-            nulls_out_ranked = rank_edges(M_null_argsort, out_deg, out_edges)
-
-            # weighted correlation
-            r[ann][f'assort_{null_type}'][k] = weighted_correlation(
-                nulls_in_ranked, nulls_out_ranked, A[edges])
+            r[ann][f'assort_{null_type}'][k] = spearman_assortativity(
+                network['adj'], nulls[k, :], network_metrics)
 
         r[ann]['assort_z'] = standardize_scores(
             r[ann][f'assort_{null_type}'], r[ann]['assort'])
@@ -1996,3 +2043,139 @@ def compute_spearman_assort(network, null_type, annotations,
         r[ann]['assort_p_fdr'] = p_fdr[n]
 
     return r
+
+
+def compute_spearman_assort_thresholded(network, null_type, annotations,
+                                        percent_kept, moran_kwargs=None,
+                                        species=None):
+    '''
+    Function to compute the standardized assortativity, using a rank-based
+    measure of correlation for a list of annotations and for a given network
+    that is thresholded on the basis of the length of its connections (i.e.
+    short-range connections are removed).
+
+    Parameters
+    ----------
+    network: dict
+        Dictionary storing relevant information about the network
+    null_type: str
+        Type of null used to compute the standardized assortativity
+    annotations: list
+        List of annotation names. These names should correspond to keys in the
+        network dictionary.
+    percent_kept: array-like
+        List of percentile values indicating the percentile of connections
+        that we want to keep when thresholding the network.
+    moran_kwargs: dict
+        Keyword arguments passed to the `generate_moran_nulls` function,
+        specifying the species for which we want to generate the null
+        distribution and the hemiids (if species is `human`).
+    species: str
+        Denotes the species associated with the data. This must be specified
+        when the null_type is `burt`.
+    Returns
+    -------
+    results: dict
+        Dictionary storing the results computed with this function. They
+        include, for each annotation:
+        `assort_all`: Assortativity scores, for each thresholded connectome.
+        `assort_all_{null_type}`: Assortativity scores of the surrogate
+            annotations, for each thresholded connectome.
+        `assort_all_z`: Standardized assortativity scores, for each thresholded
+            connectome.
+        `assort_all_p`: p-values the assortativity scores, for each thresholded
+            connectome.
+
+    '''
+
+    if moran_kwargs is None:
+        moran_kwargs = {}
+
+    n_bins = len(percent_kept)
+
+    r = {}
+    for ann in annotations:
+        r[ann] = {}
+        r[ann]['assort_all'] = np.zeros((n_bins))
+        r[ann][f'assort_all_{null_type}'] = np.zeros((n_bins, 10000))
+        r[ann]['assort_all_p'] = np.zeros((n_bins))
+        r[ann]['assort_all_z'] = np.zeros((n_bins))
+        r[ann]['assort_all_p_fdr'] = np.zeros((n_bins))
+
+        # empirical annotation
+        M = network[ann]
+
+        # null annotations
+        nulls = _get_null_annotations(
+            network, ann, null_type, moran_kwargs, species)
+
+        for i, percent in enumerate(tqdm(percent_kept)):
+
+            # threshold connectomes (remove short-range connections)
+            A = network['adj'].copy()
+            threshold = np.percentile(
+                network['dist'][network['adj'] > 0], 100 - percent)
+            A[network['dist'] < threshold] = 0
+
+            # Get network metrics (for spearman assortativity computation)
+            network_metrics = _get_network_metrics(A)
+
+            # Compute assortativity (empirical)
+            r[ann]['assort_all'][i] = spearman_assortativity(
+                A, M, network_metrics)
+
+            # Compute assortativity (nulls)
+            for k in range(10000):
+                r[ann][f'assort_all_{null_type}'][i, k] = spearman_assortativity(
+                    A, nulls[k, :], network_metrics)
+
+            # Compute standardized assortativity + p-values
+            r[ann]['assort_all_z'][i] = standardize_scores(
+                r[ann][f'assort_all_{null_type}'][i, :],
+                r[ann]['assort_all'][i])
+            r[ann]['assort_all_p'][i] = get_p_value(
+                r[ann][f'assort_all_{null_type}'][i, :],
+                r[ann]['assort_all'][i])
+
+    # compute FDR-corrected p-values
+    for i, percent in enumerate(tqdm(percent_kept)):
+        p_values = [r[ann]['assort_all_p'][i] for ann in annotations]
+        _, p_fdr, _, _ = multipletests(p_values, method='fdr_by')
+        for n, ann in enumerate(annotations):
+            r[ann]['assort_all_p_fdr'][i] = p_fdr[n]
+
+    return r
+
+
+def _get_null_annotations(network, ann, null_type, moran_kwargs, species):
+    '''
+    Helper function to get surrogate annotations, for a given null model
+    '''
+    if null_type == 'spin':
+        nulls = network[ann][network['spin_nulls']].T
+    elif null_type == 'moran':
+        nulls = generate_moran_nulls(network[ann], network, 10000,
+                                     **moran_kwargs)
+    elif null_type == 'burt':
+        nulls = np.load(f"data/burt_nulls/{species}/{ann}.npy")
+    elif null_type == 'perm':
+        nulls = np.array([np.random.permutation(network[ann])
+                          for _ in range(10000)])
+    return nulls
+
+
+def _get_network_metrics(A):
+    '''
+    Helper function to get network metrics that are useful for Spearman's
+    assortativity computations
+    '''
+    n_nodes = len(A)
+    edge_idx = np.flatnonzero(A)
+    network_metrics = {}
+    network_metrics['in_edges'] = np.floor_divide(edge_idx, n_nodes)
+    network_metrics['in_deg'] = np.count_nonzero(A, axis=1)
+    network_metrics['out_edges'] = np.mod(edge_idx, n_nodes)
+    network_metrics['out_deg'] = np.count_nonzero(A, axis=0)
+    network_metrics['edges'] = A > 0
+
+    return network_metrics
