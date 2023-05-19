@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="158.958125pt" height="188.598989pt" viewBox="0 0 158.958125 188.598989" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2023-04-12T16:27:06.339448</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.6.2, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M -0 188.598989 
+L 158.958125 188.598989 
+L 158.958125 0 
+L -0 0 
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 34.578125 94.412739 
+L 151.758125 94.412739 
+L 151.758125 11.252739 
+L 34.578125 11.252739 
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g id="line2d_1">
+    <path d="M 46.406153 67.281367 
+L 146.431761 67.281367 
+" clip-path="url(#p91b67f6ce9)" style="fill: none; stroke-dasharray: 5.55,2.4; stroke-dashoffset: 0; stroke: #d3d3d3; stroke-width: 1.5"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 39.904489 67.281367 
+L 52.907818 67.281367 
+L 52.907818 73.209829 
+L 39.904489 73.209829 
+z
+" clip-path="url(#p91b67f6ce9)" style="fill: #cdf5cd; stroke: #cdf5cd; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 59.90961 67.281367 
+L 72.912939 67.281367 
+L 72.912939 76.211998 
+L 59.90961 76.211998 
+z
+" clip-path="url(#p91b67f6ce9)" style="fill: #cacaf8; stroke: #cacaf8; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 79.914732 67.281367 
+L 92.918061 67.281367 
+L 92.918061 90.632739 
+L 79.914732 90.632739 
+z
+" clip-path="url(#p91b67f6ce9)" style="fill: #feeeba; stroke: #feeeba; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 99.919854 67.281367 
+L 112.923183 67.281367 
+L 112.923183 49.541261 
+L 99.919854 49.541261 
+z
+" clip-path="url(#p91b67f6ce9)" style="fill: #f5cdf5; stroke: #f5cdf5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 119.924975 67.281367 
+L 132.928304 67.281367 
+L 132.928304 73.08962 
+L 119.924975 73.08962 
+z
+" clip-path="url(#p91b67f6ce9)" style="fill: #caf8f8; stroke: #caf8f8; stroke-linejoin: miter"/>
+   </g>
+   <g id="matplotlib.axis_1">
+    <g id="xtick_1">
+     <g id="line2d_2">
+      <defs>
+       <path id="m3a863a9936" d="M 0 0 
+L 0 3.5 
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#m3a863a9936" x="46.406153" y="94.412739" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_1">
+      <text style="font: 200 12px 'Calibri'" transform="translate(49.420216 167.103364) rotate(-90)">receptor_den</text>
+     </g>
+    </g>
+    <g id="xtick_2">
+     <g id="line2d_3">
+      <g>
+       <use xlink:href="#m3a863a9936" x="66.411275" y="94.412739" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_2">
+      <text style="font: 200 12px 'Calibri'" transform="translate(69.425337 138.462739) rotate(-90)">EI_ratio</text>
+     </g>
+    </g>
+    <g id="xtick_3">
+     <g id="line2d_4">
+      <g>
+       <use xlink:href="#m3a863a9936" x="86.416396" y="94.412739" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_3">
+      <text style="font: 200 12px 'Calibri'" transform="translate(89.430459 143.641489) rotate(-90)">genePC1</text>
+     </g>
+    </g>
+    <g id="xtick_4">
+     <g id="line2d_5">
+      <g>
+       <use xlink:href="#m3a863a9936" x="106.421518" y="94.412739" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_4">
+      <text style="font: 200 12px 'Calibri'" transform="translate(109.435581 121.463989) rotate(-90)">t1t2</text>
+     </g>
+    </g>
+    <g id="xtick_5">
+     <g id="line2d_6">
+      <g>
+       <use xlink:href="#m3a863a9936" x="126.42664" y="94.412739" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_5">
+      <text style="font: 200 12px 'Calibri'" transform="translate(129.440702 114.239614) rotate(-90)">thi</text>
+     </g>
+    </g>
+    <g id="text_6">
+     <text style="font: 12px 'Calibri'; text-anchor: middle" x="93.168125" y="179.265239" transform="rotate(-0 93.168125 179.265239)">annotation</text>
+    </g>
+   </g>
+   <g id="matplotlib.axis_2">
+    <g id="ytick_1">
+     <g id="line2d_7">
+      <defs>
+       <path id="mdf51e599b8" d="M 0 0 
+L -3.5 0 
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#mdf51e599b8" x="34.578125" y="67.281367" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_7">
+      <text style="font: 200 12px 'Calibri'; text-anchor: end" x="27.578125" y="71.365117" transform="rotate(-0 27.578125 71.365117)">0</text>
+     </g>
+    </g>
+    <g id="ytick_2">
+     <g id="line2d_8">
+      <g>
+       <use xlink:href="#mdf51e599b8" x="34.578125" y="39.282559" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_8">
+      <text style="font: 200 12px 'Calibri'; text-anchor: end" x="27.578125" y="43.366309" transform="rotate(-0 27.578125 43.366309)">2</text>
+     </g>
+    </g>
+    <g id="ytick_3">
+     <g id="line2d_9">
+      <g>
+       <use xlink:href="#mdf51e599b8" x="34.578125" y="11.28375" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_9">
+      <text style="font: 200 12px 'Calibri'; text-anchor: end" x="27.578125" y="15.3675" transform="rotate(-0 27.578125 15.3675)">4</text>
+     </g>
+    </g>
+    <g id="text_10">
+     <text style="font: 12px 'Calibri'; text-anchor: middle" x="15.361875" y="52.832739" transform="rotate(-90 15.361875 52.832739)">z-assortativity</text>
+    </g>
+   </g>
+   <g id="patch_8">
+    <path d="M 34.578125 94.412739 
+L 34.578125 11.252739 
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="patch_9">
+    <path d="M 34.578125 94.412739 
+L 151.758125 94.412739 
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p91b67f6ce9">
+   <rect x="34.578125" y="11.252739" width="117.18" height="83.16"/>
+  </clipPath>
+ </defs>
+</svg>
