@@ -1,6 +1,6 @@
 # Assortative mixing in micro-architecturally annotated brain connectomes
 
-This repository contains scripts and functions to reproduce the results presented in [Assortative mixing in micro-architecturally annotated brain connectomes](https://www.biorxiv.org/content/10.1101/2022.05.31.494070v1).
+This repository contains scripts and functions to reproduce the results presented in [Assortative mixing in micro-architecturally annotated brain connectomes](https://doi.org/10.1038/s41467-023-38585-4).
 
 ## The main script
 
